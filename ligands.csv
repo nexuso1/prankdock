@@ -1,0 +1,37 @@
+Ligand	SMILES
+1-Butanol	CCCCO
+1-Pentanol	CCCCCO
+1-Hexanol	CCCCCCO
+1-Heptanol	CCCCCCCO
+1-Octanol	CCCCCCCCO
+1-Nonanol	CCCCCCCCCO
+1-Decanol	CCCCCCCCCCO
+1-Undecanol	CCCCCCCCCCCO
+1-Dodecanol	CCCCCCCCCCCCO
+2-Pentanol	CCCC(C)O
+2-Hexanol	CCCCC(C)O
+3-Hexanol	CCCC(CC)O
+4-Heptanol	CCCC(CCC)O
+Isoamyl Alcohol	CC(C)CCO
+2-Methyl-1-butanol	CCC(C)CO
+2,2-Dimethyl-1-propanol	CC(C)(C)CO
+2-Phenylethanol	C1=CC=C(C=C1)CCO
+2-Heptanone	CCCCCC(=O)C
+2-Nonanone	CCCCCCCC(=O)C
+2,3-Butanedione	CC(=O)C(=O)C
+2,3-Pentanedione	CCC(=O)C(=O)C
+2,3-Hexanedione	CCCC(=O)C(=O)C
+Acetoin	CC(C(=O)C)O
+1-Heptanal	CCCCCCC=O
+Benzaldehyde	C1=CC=C(C=C1)C=O
+Isovalerate	CC(C)CC(=O)[O-]
+Isovaleric Acid	CC(C)CC(=O)O
+Butyric Acid	CCCC(=O)O
+Butyl Acetate	CCCCOC(=O)C
+Methyl isovalerate	CC(C)CC(=O)OC
+1-Undecene	CCCCCCCCCC=C
+2,5-Dimethylpyrazine	CC1=CN=C(C=N1)C
+Dimethyl trisulfide	CSSSC
+Trimethylamine	CN(C)C
+Pyrrole	C1=CNC=C1
+Indole	C1=CC=C2C(=C1)C=CN2
