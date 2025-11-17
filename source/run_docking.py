@@ -183,9 +183,9 @@ def run_docking(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--pocket_preds_path', default='../data/p2rank_output', help='Output directory path')
+    parser.add_argument('--pocket_preds_path', default='../data/p2rank_output', help='P2rank pocket predictions output path')
     parser.add_argument('--pdbs_path', default='../data/pdbs', help='Path to the directory where .pdb files are stored')
-    parser.add_argument('--ligands_path', default='../data/ligands.csv', help='Path to ligands')
+    parser.add_argument('--ligands_path', default='../data/ligands.csv', help='Path to the ligands csv file. Should contain fields "smiles" and "name".')
     parser.add_argument('--ph', default=6, type=int, help='pH for ligand preparation')
     parser.add_argument('--skip_tautomer', action='store_true', help='Skip tautomers in ligand preparation')
     parser.add_argument('--skip_acidbase', action='store_true', help='Skip acid/base conjugates in ligand preparation')
