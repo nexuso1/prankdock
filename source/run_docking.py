@@ -189,7 +189,7 @@ if __name__ == '__main__':
     parser.add_argument('--ph', default=6, type=int, help='pH for ligand preparation')
     parser.add_argument('--skip_tautomer', action='store_true', help='Skip tautomers in ligand preparation')
     parser.add_argument('--skip_acidbase', action='store_true', help='Skip acid/base conjugates in ligand preparation')
-    parser.add_argument('--box_size', type=int, default=40, help='Box size in Å for docking. Default is the Prankweb value of 40Å.')
+    parser.add_argument('--box_size', type=int, default=20, help='Box size in Å for docking. Prankweb has a default of 40Å, here 20Å is used, same as default in Vina.')
     parser.add_argument('-e', '--exhaustiveness', type=int, default=32, help='Search exhaustiveness for Vina')
 
     args = parser.parse_args()
