@@ -1,4 +1,5 @@
 from pathlib import Path
+import numpy as np
 
 # Helper functions
 def locate_file(from_path : Path = None, query_path = None, query_name = "query file"):
@@ -19,3 +20,6 @@ def locate_file(from_path : Path = None, query_path = None, query_name = "query 
     print(return_which)
 
     return possible_path[0]
+
+def l2_norm(x):
+    return np.sqrt(np.sum(np.asarray(x) ** 2))

@@ -5,12 +5,16 @@ import pandas as pd
 import sys
 import numpy as np
 from Bio.PDB import PDBParser
+from Bio import SeqIO, AlignIO
+from Bio.Align import MultipleSeqAlignment
+from Bio.PDB import Structure
 from glob import glob
 from prody import *
 from pathlib import Path
-from utils import locate_file
+from utils import locate_file, l2_norm
 import rdkit
 import subprocess
+#import
 
 print("rdkit version:", rdkit.__version__)
 
@@ -54,6 +58,7 @@ def prepare_ligand(ligand_smiles, ph = 6, skip_tautomer=False, skip_acidbase=Fal
     ], check=True)
 
     return Path(output_path)
+
 
 def standardize_name(ligand_name):
     ligand_name = re.sub(r'\'"', '', ligand_name)
@@ -119,12 +124,78 @@ def prepare_receptor(pdb_path : Path, center_coords, box_sizes) -> list[Path]:
 
     return (Path(f'../data/docking_files/{pdb_path.stem}_prepared.pdbqt'), Path(f'../data/docking_files/{pdb_path.stem}_prepared.box.txt'))
 
-def find_best_pocket(pdb, pockets):
-    return pockets.sort_values('score').iloc[0]
+def parse_msa_target_indices(path):
+    with open(path, 'r') as f:
+        lines = f.readlines()
+
+    res = []
+    for line in lines:
+        left, right = line.strip().split('-')
+        res.extend(list(range(int(left), int(right))))
+
+    return res
+
+def find_best_pocket(struct : Structure, pockets : pd.DataFrame, msa : MultipleSeqAlignment, id_to_msa_index : dict, target_indices, tol=20):
+
+    # List containing a mapping from MSA indices to last preceding sequence index
+    ungapped_index = []
+    idx = 0
+    seq_row = id_to_msa_index[struct.id]
+    for i in range(msa.get_alignment_length()):
+        ungapped_index.append(idx)
+        if msa[seq_row, i] != '-':
+            idx += 1
+
+    # Target indices to sequence indices
+    residue_indices = []
+    for i in target_indices:
+        if msa[seq_row, i] != '-':
+            residue_indices.append(ungapped_index[i])
+
+    # Calculate a centroid from the target residues
+    residues = list(struct.get_residues())
+    centroid = np.average([residues[i].center_of_mass() for i in residue_indices], axis=0)
+
+    # Mask pockets according to their distance from the centroid of selected residues 
+    mask = []
+    for _, pocket in pockets.iterrows():
+        min_dist = np.inf
+        for residue in pocket['residue_ids'].split(' '):
+            idx = int(residue[2:]) # residue ids have a pattern of A_123
+            # Iterate through atoms of the residue to find the furthest one
+            for atom in residues[idx].get_atoms():
+                c_dist = l2_norm(atom.get_coord() - centroid)
+                if c_dist < min_dist:
+                    min_dist = c_dist
+        #center_x, center_y, center_z = pocket['center_x'], pocket['center_y'], pocket['center_z']
+        print(min_dist)
+        mask.append(min_dist < tol)
+    
+    # All pockets are far, return the best one
+    if np.sum(mask) == 0:
+        return pockets.sort_values('score').iloc[0]
+
+    # Return the pocket that has the highest score
+    else:
+        return pockets[mask].sort_values('score').iloc[0]
+    
+def create_msa_index_table(msa : MultipleSeqAlignment):
+    res = {}
+    for i , prot in enumerate(msa):
+        res[prot.id] = i
+
+    return res
 
 def prepare_receptors(args) -> list[tuple[Path, Path]]:
     pdbs = list(Path(args.pdbs_path).rglob('*.pdb'))
     parser = PDBParser()
+    msa = AlignIO.read(args.msa_path, format='fasta')
+    # Mapping of unproit ids to rows in the MSA
+    id_to_msa_index = create_msa_index_table(msa)
+
+    # Prepare MSA index residues
+    target_indices = parse_msa_target_indices(args.target_idxs_path)
+
     out = []
     for pdb in pdbs:
         name = pdb.stem
@@ -132,9 +203,12 @@ def prepare_receptors(args) -> list[tuple[Path, Path]]:
             pockets = pd.read_csv(f'{args.pocket_preds_path}/{name}.pdb_predictions.csv', skipinitialspace=True)
         except FileNotFoundError:
             raise FileExistsError(f'Predictions for {name} not found. Use run_p2rank.py to generate the pocket predictions first.')
-        
-        best = find_best_pocket(pdb, pockets)
+
         molecule = parser.get_structure(pdb.stem, pdb)
+
+        # Determine the pocket for docking        
+        best = find_best_pocket(molecule, pockets, msa, id_to_msa_index, target_indices, tol=args.tol)
+        
         residues = list(molecule.get_residues())
         center = best['center_x'], best['center_y'], best['center_z']
         center_np = np.asarray(center)
@@ -142,19 +216,20 @@ def prepare_receptors(args) -> list[tuple[Path, Path]]:
 
         # Find the furthest atom from the center for correct box size
         for residue in best['residue_ids'].split(' '):
-            idx = int(residue[2:])
+            idx = int(residue[2:]) # residue ids have a pattern of A_123
             max_dist_atom = 0
+            # Iterate through atoms of the residue to find the furthest one
             for atom in residues[idx].get_atoms():
-                c_dist = np.sum((atom.get_coord() - center_np) ** 2)
+                c_dist = l2_norm(atom.get_coord() - center_np)
                 if c_dist > max_dist_atom:
                     max_dist_atom = c_dist
 
             if max_dist_atom > max_dist:
                 max_dist = max_dist_atom
 
-        box_size = np.sqrt(max_dist) + 2 # 2A padding
+        box_size = max_dist + 2 # 2A padding
         out.append(prepare_receptor(pdb, center, (box_size, box_size, box_size)))
-    
+
     return out
 
 def dock_ligands(receptor_info : list[tuple[Path, Path]], lig_names : list[Path]):
@@ -182,9 +257,9 @@ def dock_ligands(receptor_info : list[tuple[Path, Path]], lig_names : list[Path]
                 print(f'Output saved to {out_path}')
 
 def run_docking(args):
-    lig_names = prepare_ligands(args)
+    #lig_names = prepare_ligands(args)
     receptor_info = prepare_receptors(args)
-    dock_ligands(receptor_info, lig_names)
+    #dock_ligands(receptor_info, lig_names)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -192,10 +267,13 @@ if __name__ == '__main__':
     parser.add_argument('--pdbs_path', default='../data/pdbs', help='Path to the directory where .pdb files are stored')
     parser.add_argument('--ligands_path', default='../data/ligands.csv', help='Path to the ligands csv file. Should contain fields "smiles" and "name".')
     parser.add_argument('--ph', default=7, type=int, help='pH for ligand preparation')
+    parser.add_argument('--msa_path', default='../data/aligned_sequences.fasta', help='MSA for the receptors, used for selecting pockets outside the membrane.')
+    parser.add_argument('--target_idxs_path', default='../data/msa_index_ranges.txt', help='File containing indices to the MSA for membrane pocket selection')
+    parser.add_argument('--tol', default=20, type=int, help='Maximum pocket center distance from the centroid of residues matched to the MSA indices for membrane pocket selection. Pockets further away are not considered when determining the best pocket.')
     parser.add_argument('--skip_tautomer', action='store_true', help='Skip tautomers in ligand preparation')
     parser.add_argument('--skip_acidbase', action='store_true', help='Skip acid/base conjugates in ligand preparation')
     # parser.add_argument('--box_size', type=int, default=20, help='Box size in Å for docking. Prankweb has a default of 40Å, here 20Å is used, same as default in Vina.')
     parser.add_argument('-e', '--exhaustiveness', type=int, default=32, help='Search exhaustiveness for Vina')
-
+    parser.add_argument('--pocket_selection_mode', default='best', choices=['best', 'close'], help='"best" mode simply takes the highest scoring pocket from the P2rank prediction. "close" mode only considers pockets that are close to the external part of the protein, determined via the indices ')
     args = parser.parse_args()
     run_docking(args)
