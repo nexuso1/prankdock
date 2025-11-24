@@ -135,7 +135,7 @@ def parse_msa_target_indices(path):
 
     return res
 
-def find_best_pocket(struct : Structure, pockets : pd.DataFrame, msa : MultipleSeqAlignment, id_to_msa_index : dict, target_indices, tol=20):
+def find_best_pockets(struct : Structure, pockets : pd.DataFrame, msa : MultipleSeqAlignment, id_to_msa_index : dict, target_indices, tol=20):
 
     # List containing a mapping from MSA indices to last preceding sequence index
     ungapped_index = []
@@ -175,7 +175,7 @@ def find_best_pocket(struct : Structure, pockets : pd.DataFrame, msa : MultipleS
     if np.sum(mask) == 0:
         return pockets.sort_values('score').iloc[0]
 
-    # Return the pocket that has the highest score
+    # Return the pocket from the close pockets that has the highest score
     else:
         return pockets[mask].sort_values('score').iloc[0]
     
@@ -185,6 +185,23 @@ def create_msa_index_table(msa : MultipleSeqAlignment):
         res[prot.id] = i
 
     return res
+
+def calculate_box_size(residues, center, pocket):
+    max_dist = 0
+    # Find the furthest atom from the center for correct box size
+    for residue in pocket['residue_ids'].split(' '):
+        idx = int(residue[2:]) # residue ids have a pattern of A_123
+        max_dist_atom = 0
+        # Iterate through atoms of the residue to find the furthest one
+        for atom in residues[idx].get_atoms():
+            c_dist = l2_norm(atom.get_coord() - center)
+            if c_dist > max_dist_atom:
+                max_dist_atom = c_dist
+
+        if max_dist_atom > max_dist:
+            max_dist = max_dist_atom
+
+    return max_dist + 2 # 2A padding
 
 def prepare_receptors(args) -> list[tuple[Path, Path]]:
     pdbs = list(Path(args.pdbs_path).rglob('*.pdb'))
@@ -207,28 +224,14 @@ def prepare_receptors(args) -> list[tuple[Path, Path]]:
         molecule = parser.get_structure(pdb.stem, pdb)
 
         # Determine the pocket for docking        
-        best = find_best_pocket(molecule, pockets, msa, id_to_msa_index, target_indices, tol=args.tol)
-        
+        best = find_best_pockets(molecule, pockets, msa, id_to_msa_index, target_indices, tol=args.tol)
         residues = list(molecule.get_residues())
-        center = best['center_x'], best['center_y'], best['center_z']
-        center_np = np.asarray(center)
-        max_dist = 0
-
-        # Find the furthest atom from the center for correct box size
-        for residue in best['residue_ids'].split(' '):
-            idx = int(residue[2:]) # residue ids have a pattern of A_123
-            max_dist_atom = 0
-            # Iterate through atoms of the residue to find the furthest one
-            for atom in residues[idx].get_atoms():
-                c_dist = l2_norm(atom.get_coord() - center_np)
-                if c_dist > max_dist_atom:
-                    max_dist_atom = c_dist
-
-            if max_dist_atom > max_dist:
-                max_dist = max_dist_atom
-
-        box_size = max_dist + 2 # 2A padding
-        out.append(prepare_receptor(pdb, center, (box_size, box_size, box_size)))
+        if best.shape[0] > 0:
+            for _, pocket in best.iterrows():
+                center = pocket['center_x'], pocket['center_y'], pocket['center_z']
+                center_np = np.asarray(center)
+                box_size = calculate_box_size(residues, center_np, pocket)
+                out.append(prepare_receptor(pdb, center, (box_size, box_size, box_size)))
 
     return out
 
@@ -240,21 +243,20 @@ def dock_ligands(receptor_info : list[tuple[Path, Path]], lig_names : list[Path]
         os.mkdir('../output')
 
     for receptor, config in receptor_info:
-        for ligand in lig_names:
-            for path in glob(f'../data/prepared_ligands/{ligand}*.pdbqt'):
-                lig_stem = Path(path).stem
-                out_path = f'../output/{receptor.stem}_{lig_stem}.pdbqt'
-                print(f'Docking {lig_stem} to {receptor.stem}...')
-                command = ' '.join([
-                    str(vina),
-                    '--receptor', str(receptor),
-                    '--ligand', str(path),
-                    '--config', str(config),
-                    f'--exhaustiveness={args.exhaustiveness}',
-                    '--out', out_path
-                ])
-                subprocess.run(command, shell=True, check=True)
-                print(f'Output saved to {out_path}')
+        for path in glob(f'../data/prepared_ligands/*.pdbqt'):
+            lig_stem = Path(path).stem
+            out_path = f'../output/{receptor.stem}'
+            print(f'Docking {lig_stem} to {receptor.stem}...')
+            command = ' '.join([
+                str(vina),
+                '--receptor', str(receptor),
+                '--batch', str(path),
+                '--config', str(config),
+                f'--exhaustiveness={args.exhaustiveness}',
+                '--dir', out_path
+            ])
+            subprocess.run(command, shell=True, check=True)
+            print(f'Output saved to {out_path}')
 
 def run_docking(args):
     #lig_names = prepare_ligands(args)
