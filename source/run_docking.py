@@ -104,16 +104,16 @@ def prepare_ligands(args):
 
     return ligands['name']
 
-def prepare_receptor(pdb_path : Path, center_coords, box_sizes) -> list[Path]:
+def prepare_receptor(pdb_path : Path, pocket_id, center_coords, box_sizes) -> list[Path]:
     # Export receptor atoms
     center_x, center_y, center_z = center_coords
     size_x, size_y, size_z = box_sizes
-
+    out_path = f'../data/docking_files/{pdb_path.stem}_{pocket_id}'
     command = [
         "python",
         str(mk_prepare_receptor),
         "-i", str(pdb_path),
-        "-o", f'../data/docking_files/{pdb_path.stem}_prepared',
+        "-o", out_path,
         "-p",  # Generate PDBQT file
         "-v",  # Generate Vina config
         "--box_center", str(center_x), str(center_y), str(center_z),
@@ -122,7 +122,7 @@ def prepare_receptor(pdb_path : Path, center_coords, box_sizes) -> list[Path]:
 
     subprocess.run(command, check=True, shell=True)
 
-    return (Path(f'../data/docking_files/{pdb_path.stem}_prepared.pdbqt'), Path(f'../data/docking_files/{pdb_path.stem}_prepared.box.txt'))
+    return (Path(f'{out_path}.pdbqt'), Path(f'{out_path}.box.txt'))
 
 def parse_msa_target_indices(path):
     with open(path, 'r') as f:
@@ -135,8 +135,11 @@ def parse_msa_target_indices(path):
 
     return res
 
-def find_best_pockets(struct : Structure, pockets : pd.DataFrame, msa : MultipleSeqAlignment, id_to_msa_index : dict, target_indices, tol=20):
+def find_best_pockets(struct : Structure, pockets : pd.DataFrame, msa : MultipleSeqAlignment, id_to_msa_index : dict, target_indices, tol=20, mode = 'close_all'):
 
+    if mode == 'best':
+        return pockets.sort_values('score').iloc[0]
+    
     # List containing a mapping from MSA indices to last preceding sequence index
     ungapped_index = []
     idx = 0
@@ -175,6 +178,10 @@ def find_best_pockets(struct : Structure, pockets : pd.DataFrame, msa : Multiple
     if np.sum(mask) == 0:
         return pockets.sort_values('score').iloc[0]
 
+    # Return all close pockets
+    if mode == 'close_all':
+        return pockets[mask]
+    
     # Return the pocket from the close pockets that has the highest score
     else:
         return pockets[mask].sort_values('score').iloc[0]
@@ -224,44 +231,52 @@ def prepare_receptors(args) -> list[tuple[Path, Path]]:
         molecule = parser.get_structure(pdb.stem, pdb)
 
         # Determine the pocket for docking        
-        best = find_best_pockets(molecule, pockets, msa, id_to_msa_index, target_indices, tol=args.tol)
+        best = find_best_pockets(molecule, pockets, msa, id_to_msa_index, target_indices, tol=args.tol, mode=args.pocket_selection_mode)
         residues = list(molecule.get_residues())
         if best.shape[0] > 0:
             for _, pocket in best.iterrows():
                 center = pocket['center_x'], pocket['center_y'], pocket['center_z']
                 center_np = np.asarray(center)
                 box_size = calculate_box_size(residues, center_np, pocket)
-                out.append(prepare_receptor(pdb, center, (box_size, box_size, box_size)))
-
+                out.append(prepare_receptor(pdb, f'p{pocket["rank"]}', center, (box_size, box_size, box_size)))
+        break
     return out
 
-def dock_ligands(receptor_info : list[tuple[Path, Path]], lig_names : list[Path]):
+def dock_ligands(receptor_info : list[tuple[Path, Path]]):
     if not os.path.exists('../data/docking_files'):
         os.makedirs('../data/docking_files')
 
     if not os.path.exists('../output'):
         os.mkdir('../output')
+    
+    if sys.platform == 'win32':
+        ligands_path_cmd = ' --batch '.join(list(glob('..\data\prepared_ligands\*.pdbqt')))
+        
+    else:
+        ligands_path_cmd =  Path('../data/prepared_ligands/*.pdbqt')
 
     for receptor, config in receptor_info:
-        for path in glob(f'../data/prepared_ligands/*.pdbqt'):
-            lig_stem = Path(path).stem
-            out_path = f'../output/{receptor.stem}'
-            print(f'Docking {lig_stem} to {receptor.stem}...')
-            command = ' '.join([
-                str(vina),
-                '--receptor', str(receptor),
-                '--batch', str(path),
-                '--config', str(config),
-                f'--exhaustiveness={args.exhaustiveness}',
-                '--dir', out_path
-            ])
-            subprocess.run(command, shell=True, check=True)
-            print(f'Output saved to {out_path}')
+        out_path = f'../output/{receptor.stem}'
+        if not os.path.exists(out_path):
+            os.makedirs(out_path, exist_ok=True)
+
+        print(f'Docking ligands to {receptor.stem}...')
+        command = ' '.join([
+            str(vina),
+            '--receptor', str(receptor),
+            '--batch', ligands_path_cmd,
+            '--config', str(config),
+            f'--exhaustiveness={args.exhaustiveness}',
+            '--cpu', str(os.cpu_count()),
+            '--dir', out_path
+        ])
+        subprocess.run(command, shell=True, check=True)
+        print(f'Output saved to {out_path}')
 
 def run_docking(args):
-    #lig_names = prepare_ligands(args)
+    # prepare_ligands(args)
     receptor_info = prepare_receptors(args)
-    #dock_ligands(receptor_info, lig_names)
+    dock_ligands(receptor_info)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -274,8 +289,12 @@ if __name__ == '__main__':
     parser.add_argument('--tol', default=20, type=int, help='Maximum pocket center distance from the centroid of residues matched to the MSA indices for membrane pocket selection. Pockets further away are not considered when determining the best pocket.')
     parser.add_argument('--skip_tautomer', action='store_true', help='Skip tautomers in ligand preparation')
     parser.add_argument('--skip_acidbase', action='store_true', help='Skip acid/base conjugates in ligand preparation')
-    # parser.add_argument('--box_size', type=int, default=20, help='Box size in Å for docking. Prankweb has a default of 40Å, here 20Å is used, same as default in Vina.')
+    # parser.add_argument('--box_size', type=int, default=20, help='Box size in Å for docking.')
     parser.add_argument('-e', '--exhaustiveness', type=int, default=32, help='Search exhaustiveness for Vina')
-    parser.add_argument('--pocket_selection_mode', default='best', choices=['best', 'close'], help='"best" mode simply takes the highest scoring pocket from the P2rank prediction. "close" mode only considers pockets that are close to the external part of the protein, determined via the indices ')
+    parser.add_argument('--pocket_selection_mode', default='close_all', choices=['best', 'close_best', 'close_all'], help='''
+                        "best" mode simply takes the highest scoring pocket from the P2rank prediction.
+                        "close_best" mode only considers the best pocket from ones that are close to the external part of the protein, determined via the indices from target_idxs_path
+                        "close_all" same as above, but docks to all close pockets
+                        ''')
     args = parser.parse_args()
     run_docking(args)
