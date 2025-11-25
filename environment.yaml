@@ -1,4 +1,4 @@
-name: vina
+name: dock
 channels:
   - conda-forge
   - defaults
