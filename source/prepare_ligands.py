@@ -5,16 +5,9 @@ import os
 import subprocess
 import pandas as pd
 from pathlib import Path
-from utils import locate_file
+from utils import locate_file, get_path_root
 
-if sys.platform == 'linux':
-    path_root = Path("/usr/local/bin")
-elif sys.platform == 'win32':
-    path_root = Path(sys.executable).parent
-else:
-    raise ValueError('Unsupported OS.')
-
-mk_prepare_ligand = locate_file(from_path = path_root, query_path = "mk_prepare_ligand.py", query_name = "mk_prepare_ligand.py")
+mk_prepare_ligand = locate_file(from_path = get_path_root(), query_path = "mk_prepare_ligand.py", query_name = "mk_prepare_ligand.py")
 scrub = locate_file(from_path = Path.cwd().parent, query_path = "scrub.py", query_name = "scrub.py")
 
 def prepare_ligand(ligand_smiles, ph = 6, skip_tautomer=False, skip_acidbase=False, ligand_name='test_ligand') -> Path:
@@ -92,6 +85,6 @@ if __name__ == '__main__':
     parser.add_argument('--ph', default=7, type=int, help='pH for ligand preparation')
     parser.add_argument('--tol', default=20, type=int, help='Maximum pocket center distance from the centroid of residues matched to the MSA indices for membrane pocket selection. Pockets further away are not considered when determining the best pocket.')
     parser.add_argument('--skip_acidbase', action='store_true', help='Skip acid/base conjugates in ligand preparation')
-
+    parser.add_argument('--skip_tautomer', action='store_true', help='Skip tautomers in ligand preparation.')
     args = parser.parse_args()
     prepare_ligands(args)

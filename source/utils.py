@@ -1,5 +1,17 @@
 from pathlib import Path
+import sys
 import numpy as np
+
+def get_path_root():
+    if sys.platform == 'linux':
+        path_root = Path("/usr/local/bin")
+    elif sys.platform == 'win32':
+        path_root = Path(sys.executable).parent
+    else:
+        raise ValueError('Unsupported OS.')
+    
+    return path_root
+
 
 # Helper functions
 def locate_file(from_path : Path = None, query_path = None, query_name = "query file"):
