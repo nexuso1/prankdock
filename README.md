@@ -58,3 +58,14 @@ cd source
     - After the receptors are prepared, it runs the AutoDock Vina 4 using the Vina forcefield on each combination of receptor and ligand.
     - Outputs are deposited in the `output/` folder
         - each pocket has its own subfolder (e.g. `output/output/A0A067XG43_p1` for pocket with rank 1 from the P2rank prediction) containing the `.pdbqt` files of docked ligands
+
+## Example
+- assuming you already have downloaded the PDBs and use the MSA (`data/aligned_sequences.fasta`) and MSA indices (`data/msa_index_ranges.txt`) and `data/ligands.csv`
+
+```
+cd source
+python run_p2rank.py
+python prepare_ligands.py
+python prepare_receptors.py
+python run_docking.py
+```
