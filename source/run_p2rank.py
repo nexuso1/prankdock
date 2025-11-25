@@ -22,8 +22,8 @@ def run_p2rank(p2rank_path, ds_path, outputd_dir):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--p2rank_path', default='..\\p2rank', help='p2rank root directory')
-    parser.add_argument('--output_path', default='../data/p2rank_output', help='Output directory path')
-    parser.add_argument('--pdbs_path', default='../data/pdbs', help='Path to the directory where .pdb files are stored')
+    parser.add_argument('-o', '--output_path', default='../data/p2rank_output', help='Output directory path')
+    parser.add_argument('-i', '--pdbs_path', default='../data/pdbs', help='Path to the directory where .pdb files are stored')
 
     args = parser.parse_args()
     create_ds_file(args.pdbs_path)
