@@ -1,8 +1,8 @@
 requests
 pandas
 meeko
-molscrub
-prody
+# molscrub
+# prody
 rdkit
-geostd
-reduce2
+pdbfixer
+biopython
