@@ -1,4 +1,4 @@
-# PrankDock - Automated pocket prediction and docking tool
+# PrankDock - Automated pocket prediction and docking pipeline
 
 
 
