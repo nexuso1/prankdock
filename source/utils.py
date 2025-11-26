@@ -4,7 +4,7 @@ import numpy as np
 
 def get_path_root():
     if sys.platform == 'linux':
-        path_root = Path("/usr/local/bin")
+        path_root = Path(sys.executable).parent
     elif sys.platform == 'win32':
         path_root = Path(sys.executable).parent
     else:
