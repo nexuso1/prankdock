@@ -164,7 +164,7 @@ def prepare_receptors(args) -> list[tuple[Path, Path]]:
                 center_np = np.asarray(center)
                 box_size = calculate_box_size(residues, center_np, pocket)
                 out.append(prepare_receptor(h_path, f'p{pocket["rank"]}', center, (box_size, box_size, box_size)))
-        break
+
     return out
 
 if __name__ == '__main__':
