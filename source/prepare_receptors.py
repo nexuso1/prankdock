@@ -125,17 +125,21 @@ def calculate_box_size(residues, center, pocket):
     return max_dist + 2 # 2A padding
 
 def protonate_pdb(pdb_path : Path, ph=7):
-    fixer = PDBFixer(str(pdb_path))
-    fixer.addMissingHydrogens(ph)
     out_path = f'../data/temp/{pdb_path.stem}_H.pdb'
-    PDBFile.writeFile(fixer.topology, fixer.positions, open(out_path, 'w'))
+    subprocess.run([
+        f'reduce -FLIP {pdb_path} > {out_path}'
+    ])
+    #fixer = PDBFixer(str(pdb_path))
+    #fixer.addMissingHydrogens(ph)
+    
+    #PDBFile.writeFile(fixer.topology, fixer.positions, open(out_path, 'w'))
     return Path(out_path)
 
 def prepare_receptors(args) -> list[tuple[Path, Path]]:
     pdbs = list(Path(args.pdbs_path).rglob('*.pdb'))
     parser = PDBParser()
     msa = AlignIO.read(args.msa_path, format='fasta')
-    # Mapping of unproit ids to rows in the MSA
+    # Mapping of uniprot ids to rows in the MSA
     id_to_msa_index = create_msa_index_table(msa)
 
     # Prepare MSA index residues
