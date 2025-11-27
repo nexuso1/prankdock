@@ -132,6 +132,9 @@ def protonate_pdb(pdb_path : Path, ph=7):
     #    reduce, '-FLIP', pdb_path, '>', out_path
     #])
     fixer = PDBFixer(str(pdb_path))
+    fixer.findNonstandardResidues()
+    print(fixer.nonstandardResidues)
+    fixer.replaceNonstandardResidues()
     fixer.removeHeterogens(keepWater=False)
     fixer.addMissingHydrogens(ph)
 
