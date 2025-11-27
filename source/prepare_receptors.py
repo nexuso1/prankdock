@@ -128,7 +128,7 @@ def calculate_box_size(residues, center, pocket):
 def protonate_pdb(pdb_path : Path, ph=7):
     out_path = f'../data/temp/{pdb_path.stem}_H.pdb'
     subprocess.run([
-        reduce, '-FLIP', pdb_path, '>', out_path
+        'reduce', '-FLIP', pdb_path, '>', out_path
     ])
     #fixer = PDBFixer(str(pdb_path))
     #fixer.addMissingHydrogens(ph)
