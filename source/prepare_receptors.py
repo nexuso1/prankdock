@@ -195,13 +195,18 @@ def prepare_receptors(args) -> list[tuple[Path, Path]]:
         # Determine the pocket for docking        
         best = find_best_pockets(molecule, pockets, msa, id_to_msa_index, target_indices, tol=args.tol, mode=args.pocket_selection_mode, include_best=args.include_best)
         residues = list(molecule.get_residues())
-        if best.shape[0] > 0:
+        if len(best.shape) > 0:
             for _, pocket in best.iterrows():
                 center = pocket['center_x'], pocket['center_y'], pocket['center_z']
                 center_np = np.asarray(center)
                 box_size = calculate_box_size(residues, center_np, pocket)
                 out.append(prepare_receptor(h_path, f'p{pocket["rank"]}', center, (box_size, box_size, box_size)))
-
+        else:
+            center = best['center_x'], best['center_y'], best['center_z']
+            center_np = np.asarray(center)
+            box_size = calculate_box_size(residues, center_np, best)
+            out.append(prepare_receptor(h_path, f'p{best["rank"]}', center, (box_size, box_size, box_size)))
+            
     return out
 
 if __name__ == '__main__':
