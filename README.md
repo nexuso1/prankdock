@@ -5,9 +5,9 @@
 ## Setup
 
 ### 1. Environmnent setup
-- Download and install the Anaconda package manager, and create a new virtual environment for prankdock using the `.yml` file.    
+- Download and install the Anaconda package manager, and create a new virtual environment for prankdock using the `.yaml` file.    
 ```
-conda env create -f environment.yml
+conda env create -f environment.yaml
 ```
 - Activate the environment using
 ```
