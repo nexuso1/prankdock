@@ -163,8 +163,8 @@ def protonate_pdb(pdb_path : Path, ph=7):
     print(fixer.nonstandardResidues)
     fixer.replaceNonstandardResidues()
     fixer.removeHeterogens(keepWater=False)
-    fixer.findMissingAtoms()
     fixer.findMissingResidues()
+    fixer.findMissingAtoms()
     fixer.addMissingAtoms(seed=42)
     fixer.addMissingHydrogens(ph)
 
