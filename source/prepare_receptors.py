@@ -96,7 +96,6 @@ def find_best_pockets(struct : Structure, pockets : pd.DataFrame, msa : Multiple
     mask = []
 
     if verbose > 0:
-        print(pockets)
         print('Pocket distance from selected residue centroid, order as in the predictions .csv:')
     for _, pocket in pockets.iterrows():
         min_dist = np.inf
