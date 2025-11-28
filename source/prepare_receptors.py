@@ -31,8 +31,13 @@ def prepare_receptor(pdb_path : Path, pocket_id, center_coords, box_sizes) -> li
         "--box_center", str(center_x), str(center_y), str(center_z),
         "--box_size", str(size_x), str(size_y), str(size_z)
     ]
+    try:
+        subprocess.run(command, check=True)
 
-    subprocess.run(command, check=True)
+    except subprocess.CalledProcessError as e:
+        print(e)
+        with open('../data/problem_pdbs.txt', 'a') as f:
+            f.write(pdb_path)
 
     return (Path(f'{out_path}.pdbqt'), Path(f'{out_path}.box.txt'))
 
