@@ -14,7 +14,7 @@ from Bio import AlignIO
 from datetime import datetime
 
 mk_prepare_receptor = locate_file(from_path = get_path_root(), query_path = "mk_prepare_receptor.py", query_name = "mk_prepare_receptor.py")
-reduce = locate_file(from_path = Path(str(get_path_root().parent) + '/lib'), query_path = "reduce.py", query_name = "reduce.py")
+#reduce = locate_file(from_path = Path(str(get_path_root().parent) + '/lib'), query_path = "reduce.py", query_name = "reduce.py")
 
 def prepare_receptor(pdb_path : Path, pocket_id, center_coords, box_sizes) -> list[Path]:
     # Export receptor atoms
