@@ -48,7 +48,7 @@ def extract_seqs(pdb_folder, output_folder):
     
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--input_folder', '-i', type=str, default='../data/pdbs', help='Extracts sequences from all PDB files in this folder')
     parser.add_argument('--output_folder', '-o', type=str, default='../data', help='Folder where the output files will be written')
 

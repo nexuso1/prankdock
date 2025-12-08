@@ -33,7 +33,7 @@ def download_pdbs(ids, key):
             print(f'Protein {prot_id} not found in the AlphaFold database, skipped. Received response {r.status_code}')
     
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--prots_path', default='../data/prots.csv', help='Path to a protein tsv-like file. Should contain a column name "uniprot_id", and the values should be Uniprot IDs of the proteins to be downloaded from AFDB.')
     parser.add_argument('--key_path', default='../data/key.txt', help='Location of the security key file for AFDB. Text file should contain ONLY the key.')
     args = parser.parse_args()

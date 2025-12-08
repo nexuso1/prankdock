@@ -14,5 +14,5 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--output_path', type=str, default='../data/aligned_sequences.fasta', help='Output folder path')
 
 
-    args = parser.parse_args()
+    args = parser.parse_args(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     align_sequences(args.input_path, args.output_path)
