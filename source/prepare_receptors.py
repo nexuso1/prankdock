@@ -242,7 +242,7 @@ if __name__ == '__main__':
     parser.add_argument('--min_box_size', default=23, type=int, help='Minimum box size for simulations')
     parser.add_argument('--padding', default=2, type=int, help='Simulation box padding')
     parser.add_argument('--tol', default=20, type=int, help='Maximum pocket center distance from the centroid of residues matched to the MSA indices for membrane pocket selection. Pockets further away are not considered when determining the best pocket.')
-    parser.add_argument('--pocket_selection_mode', default='close_all', choices=['best', 'close_best', 'close_all'], help='''
+    parser.add_argument('--pocket_selection_mode', default='close_all', choices=['best', 'close_best', 'close_all', 'top_k'], help='''
                         "best" mode simply takes the highest scoring pocket from the P2rank prediction.
                         "close_best" mode only considers the best pocket from ones that are close to the external part of the protein, determined via the indices from target_idxs_path
                         "close_all" same as above, but docks to all close pockets
