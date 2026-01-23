@@ -53,13 +53,16 @@ def parse_msa_target_indices(path):
     return res
 
 def find_best_pockets(struct : Structure, pockets : pd.DataFrame, msa : MultipleSeqAlignment, id_to_msa_index : dict, target_indices, tol=20, mode = 'close_all',
-                      verbose=1, include_best=True):
+                      verbose=1, include_best=True, k=5):
     if verbose > 0:
         print(struct.id)
 
     pockets = pockets.sort_values('score', ascending=False)
     if mode == 'best':
         return pockets.iloc[0]
+    
+    if mode == 'top_k':
+        return pockets.iloc[:k]
     
     # List containing a mapping from MSA indices to last preceding sequence index
     ungapped_index = []
@@ -150,7 +153,7 @@ def create_msa_index_table(msa : MultipleSeqAlignment):
 
     return res
 
-def calculate_box_size(residues, center, pocket):
+def calculate_box_size(residues, center, pocket, min_size=0, padding=2):
     max_dist = 0
     # Find the furthest atom from the center for correct box size
     for residue in pocket['residue_ids'].split(' '):
@@ -164,8 +167,7 @@ def calculate_box_size(residues, center, pocket):
 
         if max_dist_atom > max_dist:
             max_dist = max_dist_atom
-
-    return max_dist + 2 # 2A padding
+    return min(max_dist, min_size) + padding
 
 def protonate_pdb(pdb_path : Path, ph=7):
     out_path = f'../data/temp/{pdb_path.stem}_H.pdb'
@@ -212,18 +214,19 @@ def prepare_receptors(args) -> list[tuple[Path, Path]]:
         molecule = parser.get_structure(pdb.stem, pdb)
 
         # Determine the pocket for docking        
-        best = find_best_pockets(molecule, pockets, msa, id_to_msa_index, target_indices, tol=args.tol, mode=args.pocket_selection_mode, include_best=args.include_best)
+        best = find_best_pockets(molecule, pockets, msa, id_to_msa_index, target_indices, tol=args.tol, mode=args.pocket_selection_mode, include_best=args.include_best,
+                                 k=args.k)
         residues = {r.get_id()[1] : r for r in list(molecule.get_residues())}
         if len(best.shape) > 1:
             for _, pocket in best.iterrows():
                 center = pocket['center_x'], pocket['center_y'], pocket['center_z']
                 center_np = np.asarray(center)
-                box_size = calculate_box_size(residues, center_np, pocket)
+                box_size = calculate_box_size(residues, center_np, pocket, min_size=args.min_box_size, padding=args.padding)
                 out.append(prepare_receptor(h_path, f'p{pocket["rank"]}', center, (box_size, box_size, box_size)))
         else:
             center = best['center_x'], best['center_y'], best['center_z']
             center_np = np.asarray(center)
-            box_size = calculate_box_size(residues, center_np, best)
+            box_size = calculate_box_size(residues, center_np, best, min_size=args.min_box_size, padding=args.padding)
             out.append(prepare_receptor(h_path, f'p{best["rank"]}', center, (box_size, box_size, box_size)))
 
     return out
@@ -235,12 +238,16 @@ if __name__ == '__main__':
     parser.add_argument('--ph', default=7, type=int, help='pH for protonation')
     parser.add_argument('--msa_path', default='../data/aligned_sequences.fasta', help='MSA for the receptors, used for selecting pockets outside the membrane.')
     parser.add_argument('--target_idxs_path', default='../data/msa_index_ranges.txt', help='File containing indices to the MSA for membrane pocket selection')
+    parser.add_argument('--min_box_size', default=23, type=int, help='Minimum box size for simulations')
+    parser.add_argument('--padding', default=2, type=int, help='Simulation box padding')
     parser.add_argument('--tol', default=20, type=int, help='Maximum pocket center distance from the centroid of residues matched to the MSA indices for membrane pocket selection. Pockets further away are not considered when determining the best pocket.')
     parser.add_argument('--pocket_selection_mode', default='close_all', choices=['best', 'close_best', 'close_all'], help='''
                         "best" mode simply takes the highest scoring pocket from the P2rank prediction.
                         "close_best" mode only considers the best pocket from ones that are close to the external part of the protein, determined via the indices from target_idxs_path
                         "close_all" same as above, but docks to all close pockets
+                        "top_k" returns top k pockets by score
                         ''')
+    parser.add_argument('-k', default=5, type=int, help='If top_k mode is used, this is the k value.')
     parser.add_argument('-v', '--verbose', default=1, type=int, help='Verbosity level')
     parser.add_argument('--include_best', default=True, type=bool, help='Always include the best pocket in the selected pockets. Relevant for the "close" pocket selection mode.')
     args = parser.parse_args()
