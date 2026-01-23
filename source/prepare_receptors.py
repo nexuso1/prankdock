@@ -169,8 +169,9 @@ def calculate_box_size(residues, center, pocket, min_size=0, padding=2):
             max_dist = max_dist_atom
     return min(max_dist, min_size) + padding
 
-def protonate_pdb(pdb_path : Path, ph=7):
-    out_path = f'../data/temp/{pdb_path.stem}_H.pdb'
+def protonate_pdb(pdb_path : Path, ph=7, out_path=None):
+    if out_path == None:
+        out_path = f'../data/temp/{pdb_path.stem}_H.pdb'
 
 
     fixer = PDBFixer(str(pdb_path))
