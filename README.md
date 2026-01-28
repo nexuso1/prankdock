@@ -68,3 +68,13 @@ python prepare_ligands.py
 python prepare_receptors.py
 python run_docking.py
 ```
+
+## Gui
+- You can run the graphical interface locally from the source folder using
+```
+streamlit run gui.py
+```
+Your browser should open a new tab where you can interact with the docking pipeline and view results.
+<img width="1821" height="834" alt="image" src="https://github.com/user-attachments/assets/24e1b18e-969a-42db-a44c-ba8e349f9795" />
+<img width="1789" height="569" alt="image" src="https://github.com/user-attachments/assets/449ea279-2596-4e8d-9c72-ba4ccc2c64e2" />
+
