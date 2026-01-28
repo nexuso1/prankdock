@@ -1,4 +1,6 @@
 import os
+import sys
+from pathlib import Path
 import argparse
 import glob
 import subprocess
@@ -11,9 +13,14 @@ def create_ds_file(pdbs_path):
 def run_p2rank(p2rank_path, ds_path, outputd_dir):
     if not os.path.exists(outputd_dir):
         os.mkdir(outputd_dir)
+    
+    if sys.platform == 'win32':
+        p2rank_script = 'prank.bat'
+    else:
+        p2rank_script = 'prank'
 
     subprocess.run([
-        os.path.join(p2rank_path, 'prank'),
+        os.path.join(p2rank_path, p2rank_script),
         'predict', ds_path, 
         '-o', outputd_dir
     ])

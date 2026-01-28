@@ -232,8 +232,7 @@ def prepare_receptors(args) -> list[tuple[Path, Path]]:
 
     return out
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+def add_arguments(parser : argparse.ArgumentParser):
     parser.add_argument('--pocket_preds_path', default='../data/p2rank_output', help='P2rank pocket predictions output path')
     parser.add_argument('--pdbs_path', default='../data/pdbs', help='Path to the directory where .pdb files are stored')
     parser.add_argument('--ph', default=7, type=int, help='pH for protonation')
@@ -251,5 +250,9 @@ if __name__ == '__main__':
     parser.add_argument('-k', default=5, type=int, help='If top_k mode is used, this is the k value.')
     parser.add_argument('-v', '--verbose', default=1, type=int, help='Verbosity level')
     parser.add_argument('--include_best', default=True, type=bool, help='Always include the best pocket in the selected pockets. Relevant for the "close" pocket selection mode.')
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    add_arguments(parser)
     args = parser.parse_args()
     prepare_receptors(args)

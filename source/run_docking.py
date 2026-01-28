@@ -13,7 +13,7 @@ print("rdkit version:", rdkit.__version__)
 vina = locate_file(from_path=Path.cwd().parent, query_path=f'vina*', query_name='AutoDock Vina')
 
 
-def dock_ligands(receptor_info : list[tuple[Path, Path]], ligands_folder):
+def dock_ligands(receptor_info : list[tuple[Path, Path]], ligands_folder, exhaustiveness=32):
     if not os.path.exists('../data/docking_files'):
         os.makedirs('../data/docking_files')
 
@@ -41,7 +41,7 @@ def dock_ligands(receptor_info : list[tuple[Path, Path]], ligands_folder):
             '--receptor', str(receptor),
             '--batch', str(ligands_path_cmd),
             '--config', str(config),
-            f'--exhaustiveness={args.exhaustiveness}',
+            f'--exhaustiveness={exhaustiveness}',
             '--cpu', str(os.cpu_count()),
             '--dir', out_path
         ])
@@ -49,11 +49,12 @@ def dock_ligands(receptor_info : list[tuple[Path, Path]], ligands_folder):
         print(f'Output saved to {out_path}')
 
 def run_docking(args):
+    print(args)
     receptors = list(glob(f'{args.dock_files_path}/*.pdbqt'))
     receptors = [Path(r) for r in receptors]
     configs = [f'{args.dock_files_path}/{rec.stem}.box.txt' for rec in receptors]
     receptor_info = list(zip(receptors, configs))
-    dock_ligands(receptor_info, args.ligands_path)
+    dock_ligands(receptor_info, args.ligands_path, exhaustiveness=args.exhaustiveness)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
