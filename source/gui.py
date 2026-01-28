@@ -71,8 +71,8 @@ with tab1:
         min_box_size = st.number_input("Minimum Box Size (Å)", value=23)
         padding = st.number_input("Padding (Å)", value=2)
         st.info("Ligand Preparation Flags:")
-        skip_tautomers = st.checkbox("Skip Tautomers", value=False) #
-        skip_acidbase = st.checkbox("Skip Acid/Base", value=False) #
+        skip_tautomers = st.checkbox("Skip Tautomers", value=True) #
+        skip_acidbase = st.checkbox("Skip Acid/Base", value=True) #
 
     if st.button("Start Docking Pipeline", type="primary"):
         try:
