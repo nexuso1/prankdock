@@ -6,13 +6,13 @@ LIGAND_DIR="../data/prepared_ligands"
 CSV_DIR="../data/p2rank_output"  # Folder containing the CSVs
 OUTPUT_DIR="../data/tunnel_results"
 CAVER_PATH="../../caver/caver.jar"
-
+CAVER_HOME_PATH="../../caver"
 mkdir -p $OUTPUT_DIR
 
 for pdb_path in "$PDB_DIR"/*.pdb; do
     prot_name=$(basename "$pdb_path" .pdb)
     csv_file="$CSV_DIR/${prot_name}.pdb_predictions.csv"
-    
+
     if [ ! -f "$csv_file" ]; then
         echo "Skipping $prot_name: No CSV found at $csv_file"
         continue
@@ -34,16 +34,14 @@ for pdb_path in "$PDB_DIR"/*.pdb; do
     # Create protein-specific CAVER config
     config_path="$OUTPUT_DIR/$prot_name/config.txt"
     cat <<EOF > "$config_path"
-input_pdb_file $pdb_path
-output_directory $OUTPUT_DIR
 starting_point_coordinates $cx $cy $cz
 shell_radius 3.0
 shell_depth 4.0
 frame_clustering_threshold 3.5
 EOF
-
+    cp $pdb_path $OUTPUT_DIR/$prot_name/$prot_name.pdb
     # Run CAVER
-    java -Xmx4g -jar "$CAVER_PATH" config.txt > $OUTPUT_DIR/$prot_name/caver.log
+    java -Xmx4g -jar "$CAVER_PATH" -conf "$config_path" -pdb "$OUTPUT_DIR/$prot_name" -home "$CAVER_HOME_PATH" -cp "$CAVER_HOME_PATH"/lib -out "$OUTPUT_DIR/$prot_name" > $OUTPUT_DIR/$prot_name/caver.log
 
 
     # Run CaverDock for the best tunnel (tunnel_1.pdb)
@@ -59,4 +57,5 @@ EOF
             caverdock -i "$TUNNEL" -l "$ligand" -o "$dock_out" --full > "$dock_out/log.txt"
         done
     fi
+    break
 done
