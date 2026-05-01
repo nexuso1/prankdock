@@ -11,7 +11,7 @@ mkdir -p $OUTPUT_DIR
 
 for pdb_path in "$PDB_DIR"/*.pdb; do
     prot_name=$(basename "$pdb_path" .pdb)
-    csv_file="$CSV_DIR/${prot_name}.csv"
+    csv_file="$CSV_DIR/${prot_name}.pdb_predictions.csv"
     
     if [ ! -f "$csv_file" ]; then
         echo "Skipping $prot_name: No CSV found at $csv_file"
