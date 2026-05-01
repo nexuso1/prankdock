@@ -32,6 +32,7 @@ for pdb_path in "$PDB_DIR"/*.pdb; do
     fi
 
     # Create protein-specific CAVER config
+    mkdir -p $OUTPUT_DIR/$prot_name
     config_path="$OUTPUT_DIR/$prot_name/config.txt"
     cat <<EOF > "$config_path"
 starting_point_coordinates $cx $cy $cz
