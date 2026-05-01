@@ -1,43 +1,62 @@
 #!/bin/bash
 
-# Directories
+# Configuration
 PDB_DIR="../data/pdbs"
 LIGAND_DIR="../data/prepared_ligands"
+CSV_DIR="../data/p2rank_output"  # Folder containing the CSVs
 OUTPUT_DIR="../data/tunnel_results"
-CAVER_PATH="../../caver/caver/caver.jar"
-CAVER_HOME_PATH="../../caver"
-CAVERDOCK_PATH="caverdock" # Assuming it's in your PATH
+CAVER_PATH="../../caver/caver.jar"
 
 mkdir -p $OUTPUT_DIR
 
-for protein in "$PDB_DIR"/*.pdb; do
-    prot_name=$(basename "$protein" .pdb)
-    prot_out="$OUTPUT_DIR/$prot_name"
-    mkdir -p "$prot_out/caver"
+for pdb_path in "$PDB_DIR"/*.pdb; do
+    prot_name=$(basename "$pdb_path" .pdb)
+    csv_file="$CSV_DIR/${prot_name}.csv"
+    
+    if [ ! -f "$csv_file" ]; then
+        echo "Skipping $prot_name: No CSV found at $csv_file"
+        continue
+    fi
 
-    echo "--- Processing Protein: $prot_name ---"
+    echo "--- Processing $prot_name ---"
 
-    # 1. Run CAVER 
-    # Note: You need a template config.txt where the 'pdb_file' line is updated
-    #sed "s|input_pdb_file|../$protein|g" caver_template.txt > "$prot_out/caver/config.txt"
-    java -Xmx4g -jar $CAVER_PATH -pdb $protein -home $CAVER_HOME_PATH -out $prot_out > caver.log
+    # Extract coordinates for pocket1 from CSV
+    # Assumes headers: name, rank, score... center_x(7), center_y(8), center_z(9)
+    # We use awk to find the line where the first column is 'pocket1'
+    coords=$(awk -F',' '$1 ~ /pocket1/ {print $7, $8, $9}' "$csv_file")
+    read -r cx cy cz <<< "$coords"
+    echo "Starting coords for $prot_name: $coords"
+    if [ -z "$cx" ]; then
+        echo "Error: Could not find pocket1 coordinates for $prot_name"
+        continue
+    fi
 
-    # 2. Identify the largest tunnel (usually tunnel_1.pdb)
-    TUNNEL_PDB="$prot_out/caver/out/tunnels/tunnel_1.pdb"
-    break
-    if [ -f "$TUNNEL_PDB" ]; then
+    # Create protein-specific CAVER config
+    config_path="$OUTPUT_DIR/$prot_name/config.txt"
+    cat <<EOF > "$config_path"
+input_pdb_file $pdb_path
+output_directory $OUTPUT_DIR
+starting_point_coordinates $cx $cy $cz
+shell_radius 3.0
+shell_depth 4.0
+frame_clustering_threshold 3.5
+EOF
+
+    # Run CAVER
+    java -Xmx4g -jar "$CAVER_PATH" config.txt > $OUTPUT_DIR/$prot_name/caver.log
+
+
+    # Run CaverDock for the best tunnel (tunnel_1.pdb)
+    TUNNEL="$OUTPUT_DIR/$prot_name/caver/out/tunnels/tunnel_1.pdb"
+    
+    if [ -f "$TUNNEL" ]; then
         for ligand in "$LIGAND_DIR"/*.pdbqt; do
-            lig_name=$(basename "$ligand" .pdbqt)
-            dock_out="$prot_out/docking_$lig_name"
+            l_name=$(basename "$ligand" .pdbqt)
+            dock_out="$OUTPUT_DIR/$prot_name/docking_$l_name"
             mkdir -p "$dock_out"
-
-            echo "Pushing $lig_name through $prot_name..."
             
-            # 3. Run CaverDock
-            # -i: tunnel, -l: ligand, -o: output directory
-            $CAVERDOCK_PATH -i "$TUNNEL_PDB" -l "$ligand" -o "$dock_out" --full
+            echo "Docking $l_name into $prot_name tunnel..."
+            caverdock -i "$TUNNEL" -l "$ligand" -o "$dock_out" --full > "$dock_out/log.txt"
         done
-    else
-        echo "Warning: No tunnel found for $prot_name"
     fi
 done
