@@ -2,6 +2,7 @@
 
 # Configuration
 PDB_DIR="../data/pdbs"
+PREP_RECEPTOR_DIR="../data/docking_files"
 LIGAND_DIR="../data/prepared_ligands"
 CSV_DIR="../data/p2rank_output"  # Folder containing the CSVs
 OUTPUT_DIR="../data/tunnel_results"
@@ -32,30 +33,44 @@ for pdb_path in "$PDB_DIR"/*.pdb; do
     fi
 
     # Create protein-specific CAVER config
-    mkdir -p $OUTPUT_DIR/$prot_name
-    config_path="$OUTPUT_DIR/$prot_name/config.txt"
+    prot_out_dir="$OUTPUT_DIR/$prot_name"
+    mkdir -p "$prot_out_dir"
+    config_path="$prot_out_dir/config.txt"
     cat <<EOF > "$config_path"
 starting_point_coordinates $cx $cy $cz
 shell_radius 3.0
 shell_depth 4.0
 frame_clustering_threshold 3.5
 EOF
-    cp $pdb_path $OUTPUT_DIR/$prot_name/$prot_name.pdb
+    cp $pdb_path $prot_out_dir/$prot_name.pdb
     # Run CAVER
-    java -Xmx4g -jar "$CAVER_PATH" -conf "$config_path" -pdb "$OUTPUT_DIR/$prot_name" -home "$CAVER_HOME_PATH" -cp "$CAVER_HOME_PATH"/lib -out "$OUTPUT_DIR/$prot_name" > $OUTPUT_DIR/$prot_name/caver.log
+    java -Xmx4g -jar "$CAVER_PATH" -conf "$config_path" -pdb "$prot_out_dir" -home "$CAVER_HOME_PATH" -cp "$CAVER_HOME_PATH"/lib -out "$prot_out_dir" > $prot_out_dir/caver.log
 
 
-    # Run CaverDock for the best tunnel (tunnel_1.pdb)
-    TUNNEL="$OUTPUT_DIR/$prot_name/caver/out/tunnels/tunnel_1.pdb"
+    # Run CaverDock for the best tunnel (1.pdb)
+    TUNNEL="$prot_out_dir/data/clusters_timeless/tun_cl_001_1.pdb"
     
     if [ -f "$TUNNEL" ]; then
+        discr_tunnel="$prot_out_dir/data/1.dsd"
+        prep_receptor="$PREP_RECEPTOR_DIR"/"$prot_name"_H_p1.pdbqt
+        
+        # Discretize tunnel for CaverDock (discretizer on path)
+        if ![ -f "$dicr_tunnel"]; then 
+            discretizer -f "$TUNNEL" -o "$discr_tunnel"
+        fi
+
+        # Dock all ligands
         for ligand in "$LIGAND_DIR"/*.pdbqt; do
             l_name=$(basename "$ligand" .pdbqt)
-            dock_out="$OUTPUT_DIR/$prot_name/docking_$l_name"
-            mkdir -p "$dock_out"
-            
-            echo "Docking $l_name into $prot_name tunnel..."
-            caverdock -i "$TUNNEL" -l "$ligand" -o "$dock_out" --full > "$dock_out/log.txt"
+            dock_out_dir="$prot_out_dir/docking_$l_name"
+            mkdir -p "$dock_out_dir"
+
+            dock_conf="$dock_out_dir"/cd_tunnel1.conf
+            cd-prepareconf -r "$prep_receptor" -l "$ligand" -t "$discr_tunnel" --seed 42 --exhaustiveness 16 > "$dock_conf"
+            echo "Docking $l_name into $prot_name ($prep_receptor) tunnel 1 ($discr_tunnel)"
+
+            # In order to run deterministically, we need to use -np 2 and a seed
+            mpirun -np 2 caverdock --seed 42 --config "$dock_conf" --out "$dock_out_dir"/"$l_name"_tunnel1 > "$dock_out_dir/log.txt"
         done
     fi
     break
