@@ -1,5 +1,8 @@
 #!/bin/bash
 
+SPLIT=$1
+echo "Running split $SPLIT"
+
 # Configuration
 PDB_DIR="../data/pdbs"
 PREP_RECEPTOR_DIR="../data/docking_files"
@@ -10,7 +13,7 @@ CAVER_PATH="../../caver/caver.jar"
 CAVER_HOME_PATH="../../caver"
 mkdir -p $OUTPUT_DIR
 
-for pdb_path in "$PDB_DIR"/*.pdb; do
+for pdb_path in "$PDB_DIR"/splits_"$SPLIT"/*.pdb; do
     prot_name=$(basename "$pdb_path" .pdb)
     csv_file="$CSV_DIR/${prot_name}.pdb_predictions.csv"
 
@@ -55,7 +58,7 @@ EOF
         prep_receptor="$PREP_RECEPTOR_DIR"/"$prot_name"_H_p1.pdbqt
         
         # Discretize tunnel for CaverDock (discretizer on path)
-        if ![ -f "$dicr_tunnel"]; then 
+        if ! [ -f "$discr_tunnel" ]; then 
             discretizer -f "$TUNNEL" -o "$discr_tunnel"
         fi
 
@@ -65,12 +68,19 @@ EOF
             dock_out_dir="$prot_out_dir/docking_$l_name"
             mkdir -p "$dock_out_dir"
 
+            # Skip already completed ligand dockings
+            if [ -f "$dock_out_dir"/"$l_name"_tunnel1-ub.pdbqt ]; then
+                continue
+            fi
+
             dock_conf="$dock_out_dir"/cd_tunnel1.conf
             cd-prepareconf -r "$prep_receptor" -l "$ligand" -t "$discr_tunnel" --seed 42 --exhaustiveness 16 > "$dock_conf"
             echo "Docking $l_name into $prot_name ($prep_receptor) tunnel 1 ($discr_tunnel)"
 
-            # In order to run deterministically, we need to use -np 2 and a seed
-            mpirun -np 2 caverdock --seed 42 --config "$dock_conf" --out "$dock_out_dir"/"$l_name"_tunnel1 > "$dock_out_dir/log.txt"
+            # In order to run deterministically, we need to use -np 2 and a seed. But this takes forever.
+            # mpirun.openmpi is used instead of mpirun because mpirun didnt work inside the caverdock container while inside
+            # a job on the elmo cluster
+            mpirun.openmpi -v -np 2 caverdock --config "$dock_conf" --out "$dock_out_dir"/"$l_name"_tunnel1 > "$dock_out_dir/log.txt"
         done
     fi
     break
