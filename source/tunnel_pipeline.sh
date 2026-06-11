@@ -2,7 +2,7 @@
 
 # --- Argument Parsing ---
 PDB_DIR="../data/pdbs"
-MPI_PROCS="1"
+MPI_PROCS=1
 POCKET_START=1
 POCKET_END=1
 TUNNEL_START=1
