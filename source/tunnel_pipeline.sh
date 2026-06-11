@@ -108,6 +108,7 @@ for pdb_path in "$PDB_DIR"/splits_"$SPLIT"/*.pdb; do
 starting_point_coordinates $cx $cy $cz
 frame_clustering_threshold $CLUSTERING_THRESHOLD
 shell_depth $SHELL_DEPTH
+save_dynamics_visualization yes
 EOF
         # Copy PDB once per pocket directory (CAVER reads from the -pdb dir)
         cp "$pdb_path" "$prot_out_dir/$prot_name.pdb"
@@ -150,6 +151,7 @@ EOF
 starting_point_coordinates $cx $cy $cz
 frame_clustering_threshold $CLUSTERING_THRESHOLD
 shell_depth $SHELL_DEPTH
+save_dynamics_visualization yes
 awvd no
 EOF
                     run_caver "$alt_config_path"
