@@ -104,7 +104,7 @@ cd source
 
 # pockets 1-3 = dock into pockets ranked 1 through 3 (1 = highest score)
 # tunnels 1-3 = use tunnels 1 through 3 (1 = highest score)
-# delta 0.3 = Analyze ligand energy every 0.3 angstrom while going through the tunnel
+# delta 0.3 = Analyze ligand energy every 0.3 Ångström while going through the tunnel
 # exhaustiveness = Vina exhaustiveness (higher values MASSIVELY increase computation time)
 ./tunnel_pipeline.sh --pockets 1-3 --tunnels 1-3 --exhaustiveness 4 --delta 0.3 --o ../output/tunnel_results --caver_jar ../caver/caver.jar
 ```
