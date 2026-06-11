@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # --- Argument Parsing ---
-PDB_DIR=""
+PDB_DIR="../data/pdbs"
 MPI_PROCS=""
 POCKET_START=1
 POCKET_END=1
