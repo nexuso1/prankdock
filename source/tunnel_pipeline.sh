@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # --- Argument Parsing ---
-SPLIT=""
+PDB_DIR=""
 MPI_PROCS=""
 POCKET_START=1
 POCKET_END=1
@@ -34,8 +34,8 @@ while [[ $# -gt 0 ]]; do
         -o|--output_dir)
             OUTPUT_DIR="$2"
             shift 2 ;;
-        -s|--split)
-            SPLIT="$2"
+        -i|--PDB_DIR)
+            PDB_DIR="$2"
             shift 2 ;;
         -d|--shell_depth)
             SHELL_DEPTH="$2"
@@ -47,8 +47,8 @@ while [[ $# -gt 0 ]]; do
             CAVER_PATH="$2"
             shift 2 ;;
         *)
-            if [ -z "$SPLIT" ]; then
-                SPLIT="$1"
+            if [ -z "$PDB_DIR" ]; then
+                PDB_DIR="$1"
             elif [ -z "$MPI_PROCS" ]; then
                 MPI_PROCS="$1"
             fi
@@ -56,7 +56,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-echo "Running split $SPLIT with $MPI_PROCS MPI processes"
+echo "Running on data in $PDB_DIR with $MPI_PROCS MPI processes"
 echo "Pockets: $POCKET_START-$POCKET_END | Tunnels: $TUNNEL_START-$TUNNEL_END"
 
 cat <<EOF > $OUTPUT_DIR/config.txt
@@ -79,7 +79,7 @@ CAVER_HOME_PATH=$(dirname "$CAVER_PATH")
 
 mkdir -p $OUTPUT_DIR
 
-for pdb_path in "$PDB_DIR"/splits_"$SPLIT"/*.pdb; do
+for pdb_path in "$PDB_DIR"/*.pdb; do
     prot_name=$(basename "$pdb_path" .pdb)
     echo "--- Processing $prot_name ---"
     csv_file="$CSV_DIR/${prot_name}.pdb_predictions.csv"
