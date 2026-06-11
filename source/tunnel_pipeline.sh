@@ -191,7 +191,7 @@ EOF
                 cd-prepareconf -r "$prep_receptor" -l "$ligand" -t "$discr_tunnel" --seed 42 --exhaustiveness "$EXHAUSTIVENESS" > "$dock_conf"
                 echo "Docking $l_name into $prot_name (pocket${pocket_idx}) tunnel $tunnel_idx ($discr_tunnel)"
 
-                if [[ $MPI_PROCS == 1]]; then
+                if [[ $MPI_PROCS == 1 ]]; then
                     caverdock --config "$dock_conf" --out "$dock_out_dir/${l_name}_tunnel${tunnel_idx}" > "$dock_out_dir/log.txt"
                 else
                     mpirun.openmpi -v -np "$MPI_PROCS" caverdock --config "$dock_conf" --out "$dock_out_dir/${l_name}_tunnel${tunnel_idx}" > "$dock_out_dir/log.txt"
