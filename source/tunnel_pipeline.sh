@@ -12,7 +12,7 @@ EXHAUSTIVENESS=16
 SHELL_DEPTH=2.5
 CLUSTERING_THRESHOLD=4.5
 OUTPUT_DIR="../output/tunnel_results"
-
+CAVER_PATH="../../caver/caver.jar"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --pockets)
@@ -43,6 +43,9 @@ while [[ $# -gt 0 ]]; do
         -t|--clustering_threshold)
             CLUSTERING_THRESHOLD="$2"
             shift 2 ;;
+        --caver_jar)
+            CAVER_PATH="$2"
+            shift 2 ;;
         *)
             if [ -z "$SPLIT" ]; then
                 SPLIT="$1"
@@ -71,7 +74,7 @@ PDB_DIR="../data/pdbs"
 PREP_RECEPTOR_DIR="../data/docking_files"
 LIGAND_DIR="../data/prepared_ligands"
 CSV_DIR="../data/p2rank_output"
-CAVER_PATH="../../caver/caver.jar"
+
 CAVER_HOME_PATH=$(dirname "$CAVER_PATH")
 
 mkdir -p $OUTPUT_DIR
