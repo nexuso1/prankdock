@@ -34,7 +34,7 @@ while [[ $# -gt 0 ]]; do
         -o|--output_dir)
             OUTPUT_DIR="$2"
             shift 2 ;;
-        -i|--PDB_DIR)
+        -i|--pdb_dir)
             PDB_DIR="$2"
             shift 2 ;;
         -d|--shell_depth)
