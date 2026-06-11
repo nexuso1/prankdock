@@ -78,3 +78,33 @@ Your browser should open a new tab where you can interact with the docking pipel
 <img width="1821" height="834" alt="image" src="https://github.com/user-attachments/assets/24e1b18e-969a-42db-a44c-ba8e349f9795" />
 <img width="1789" height="569" alt="image" src="https://github.com/user-attachments/assets/449ea279-2596-4e8d-9c72-ba4ccc2c64e2" />
 
+
+# Tunnel Pipeline
+For each protein, computes possible tunnels and pushes all ligands through them. 
+Currently assumes you are running on a machine that is able to use MPI to speed
+
+## Requirements
+- Apptainer installed
+    - https://apptainer.org/
+- CaverDock image
+    - https://www.caver.cz/index.php?sid=199 
+- CAVER
+    - [3.0.2 version](https://caver.cz/index.php?sid=199)
+## Usage
+1. Run the CaverDock container using Apptainer/Singularity
+```
+apptainer shell caverdock-1.2.sif
+```
+2. Run the `tunnel_pipeline.sh` script
+```sh
+# Example usage
+# Assumes you already ran p2rank and prepared both ligands and receptors.
+
+cd source
+
+# pockets 1-3 = dock into pockets ranked 1 through 3 (1 = highest score)
+# tunnels 1-3 = use tunnels 1 through 3 (1 = highest score)
+# delta 0.3 = Analyze ligand energy every 0.3 angstrom while going through the tunnel
+# exhaustiveness = Vina exhaustiveness (higher values MASSIVELY increase computation time)
+./tunnel_pipeline.sh --pockets 1-3 --tunnels 1-3 --exhaustiveness 4 --delta 0.3 --o ../output/tunnel_results --caver_jar ../caver/caver.jar
+```
