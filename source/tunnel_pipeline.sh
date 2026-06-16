@@ -59,14 +59,14 @@ done
 echo "Running on data in $PDB_DIR with $MPI_PROCS MPI processes"
 echo "Pockets: $POCKET_START-$POCKET_END | Tunnels: $TUNNEL_START-$TUNNEL_END"
 
-cat <<EOF > $OUTPUT_DIR/config.txt
-argument value
-pockets $POCKET_START-$POCKET_END
-tunnels $TUNNEL_START-$TUNNEL_END
-delta $DELTA
-exhaustiveness $EXHAUSTIVENESS
-shell_depth $SHELL_DEPTH
-clustering_threshold $CLUSTERING_THRESHOLD
+cat <<EOF > $OUTPUT_DIR/config.csv
+argument,value
+pockets,$POCKET_START-$POCKET_END
+tunnels,$TUNNEL_START-$TUNNEL_END
+delta,$DELTA
+exhaustiveness,$EXHAUSTIVENESS
+shell_depth,$SHELL_DEPTH
+clustering_threshold,$CLUSTERING_THRESHOLD
 EOF
 
 # Configuration
