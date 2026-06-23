@@ -15,10 +15,10 @@ OUTPUT_DIR="../output/tunnel_results"
 CAVER_PATH="../../caver/caver.jar"
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --pockets)
+        -p|--pockets)
             IFS='-' read -r POCKET_START POCKET_END <<< "$2"
             shift 2 ;;
-        --tunnels)
+        -t|--tunnels)
             IFS='-' read -r TUNNEL_START TUNNEL_END <<< "$2"
             shift 2 ;;
         --delta)
@@ -40,7 +40,7 @@ while [[ $# -gt 0 ]]; do
         -d|--shell_depth)
             SHELL_DEPTH="$2"
             shift 2 ;;
-        -t|--clustering_threshold)
+        -ct|--clustering_threshold)
             CLUSTERING_THRESHOLD="$2"
             shift 2 ;;
         --caver_jar)
@@ -59,14 +59,14 @@ done
 echo "Running on data in $PDB_DIR with $MPI_PROCS MPI processes"
 echo "Pockets: $POCKET_START-$POCKET_END | Tunnels: $TUNNEL_START-$TUNNEL_END"
 
-cat <<EOF > $OUTPUT_DIR/config.txt
-argument value
-pockets $POCKET_START-$POCKET_END
-tunnels $TUNNEL_START-$TUNNEL_END
-delta $DELTA
-exhaustiveness $EXHAUSTIVENESS
-shell_depth $SHELL_DEPTH
-clustering_threshold $CLUSTERING_THRESHOLD
+cat <<EOF > $OUTPUT_DIR/config.csv
+argument,value
+pockets,$POCKET_START-$POCKET_END
+tunnels,$TUNNEL_START-$TUNNEL_END
+delta,$DELTA
+exhaustiveness,$EXHAUSTIVENESS
+shell_depth,$SHELL_DEPTH
+clustering_threshold,$CLUSTERING_THRESHOLD
 EOF
 
 # Configuration
@@ -119,7 +119,7 @@ EOF
         run_caver() {
             local conf="$1"
             rm -rf "$prot_out_dir/data"
-            echo "Running CAVER for $prot_name (pocket${pocket_idx}) with config $(basename "$conf")"
+            echo "Running CAVER for $prot_name (pocket${pocket_idx}) with config $(basename "$conf"), saving to $prot_out_dir"
             java -Xmx4g -jar "$CAVER_PATH" -conf "$conf" -pdb "$prot_out_dir" -home "$CAVER_HOME_PATH" -cp "$CAVER_HOME_PATH"/lib -out "$prot_out_dir" > "$prot_out_dir/caver.log" 2>&1
         }
 
