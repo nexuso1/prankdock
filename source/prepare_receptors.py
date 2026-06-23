@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import argparse
 import os
+from concurrent.futures import ProcessPoolExecutor
 
 from utils import l2_norm
 from pathlib import Path
@@ -25,7 +26,8 @@ def prepare_receptor(pdb_path : Path, pocket_id, center_coords, box_sizes, out_f
         "-p",  # Generate PDBQT file
         "-v",  # Generate Vina config
         "--box_center", str(center_x), str(center_y), str(center_z),
-        "--box_size", str(size_x), str(size_y), str(size_z)
+        "--box_size", str(size_x), str(size_y), str(size_z),
+        "-a"
     ]
     try:
         subprocess.run(command, check=True)
@@ -97,9 +99,8 @@ def compute_residue_pca_projection(structure, residue_id, component=0, atom_coor
     return compute_point_projection(point, components[component], origin=origin) + origin
 
 
-def filter_pockets_pca(structure : Structure, pockets : pd.DataFrame, tol=15, residue_id=5, verbose=0, include_best=False, mode='min'):
+def filter_pockets_pca(structure : Structure, pockets : pd.DataFrame, residues, tol=15, residue_id=5, verbose=0, include_best=False, mode='min'):
     extracellular_part_center = compute_residue_pca_projection(structure, residue_id=residue_id)
-    residues = list(structure.get_residues())
     # Mask pockets according to their distance from the centroid of selected residues 
     mask = []
     distances = []
@@ -262,73 +263,88 @@ def protonate_pdb(pdb_path : Path, ph=7, out_path=None):
         out_path = f'../data/temp/{pdb_path.stem}_H.pdb'
 
 
-    fixer = PDBFixer(str(pdb_path))
-    fixer.findNonstandardResidues()
+    # fixer = PDBFixer(str(pdb_path))
+    # fixer.findNonstandardResidues()
     # print(fixer.nonstandardResidues)
-    fixer.replaceNonstandardResidues()
-    fixer.removeHeterogens(keepWater=False)
-    fixer.findMissingResidues()
-    fixer.findMissingAtoms()
-    fixer.addMissingAtoms(seed=42)
-    # subprocess.run([
-    #    reduce, '-FLIP', pdb_path, '>', out_path
-    # ])
-    fixer.addMissingHydrogens(ph)
+    # fixer.replaceNonstandardResidues()
+    # fixer.removeHeterogens(keepWater=False)
+    # fixer.findMissingResidues()
+    # fixer.findMissingAtoms()
+    # fixer.addMissingAtoms(seed=42)
+    subprocess.run([
+       'reduce', '-BUILD', pdb_path, '>', out_path
+    ])
+    #fixer.addMissingHydrogens(ph)
 
-    PDBFile.writeFile(fixer.topology, fixer.positions, open(out_path, 'w'))
+    #PDBFile.writeFile(fixer.topology, fixer.positions, open(out_path, 'w'))
     return Path(out_path)
 
 def save_best_pockets(pockets, out_folder):
     os.makedirs(out_folder, exist_ok=True)
     pockets.to_csv(f'{out_folder}/filtered_pockets.csv')
 
-def prepare_receptors(args) -> list[tuple[Path, Path]]:
-    pdbs = list(Path(args.pdbs_path).rglob('*.pdb'))
-    parser = PDBParser()
-    msa = AlignIO.read(args.msa_path, format='fasta')
-    # Mapping of uniprot ids to rows in the MSA
-    id_to_msa_index = create_msa_index_table(msa)
 
-    # Prepare MSA index residues
+def _prepare_single_pdb(task):
+    pdb, args, msa, id_to_msa_index, target_indices = task
+    parser = PDBParser()
+    name = pdb.stem
+    out_folder = os.path.join(args.out_folder, name)
+
+    try:
+        pockets = pd.read_csv(f'{args.pocket_preds_path}/{name}.pdb_predictions.csv', skipinitialspace=True)
+    except FileNotFoundError as exc:
+        raise FileExistsError(f'Predictions for {name} not found. Use run_p2rank.py to generate the pocket predictions first.') from exc
+
+    h_path = protonate_pdb(pdb, args.ph)
+    structure = parser.get_structure(pdb.stem, pdb)
+    residues = {r.get_id()[1]: r for r in list(structure.get_residues())}
+    if args.pocket_selection_mode == 'pca_close':
+        best = filter_pockets_pca(structure, pockets, residues=residues, tol=args.tol, residue_id=args.pca_residue_id, include_best=args.include_best, mode=args.pocket_dist_mode)
+    else:
+        best = find_best_pockets(structure, pockets, msa, id_to_msa_index, target_indices, tol=args.tol,
+                                mode=args.pocket_selection_mode, include_best=args.include_best,
+                                k=args.k, dist_mode=args.pocket_dist_mode)
+
+    
+    save_best_pockets(best, out_folder)
+
+    if best.shape[0] == 0:
+        return []
+
+    out = []
+    if len(best.shape) > 1:
+        for _, pocket in best.iterrows():
+            center = pocket['center_x'], pocket['center_y'], pocket['center_z']
+            center_np = np.asarray(center)
+            box_size = calculate_box_size(residues, center_np, pocket, min_size=args.min_box_size, padding=args.padding)
+            out.append(prepare_receptor(h_path, f'p{pocket["rank"]}', center, (box_size, box_size, box_size), out_folder=out_folder))
+    else:
+        center = best['center_x'], best['center_y'], best['center_z']
+        center_np = np.asarray(center)
+        box_size = calculate_box_size(residues, center_np, best, min_size=args.min_box_size, padding=args.padding)
+        out.append(prepare_receptor(h_path, f'p{best["rank"]}', center, (box_size, box_size, box_size), out_folder=out_folder))
+
+    return out
+
+
+def prepare_receptors(args) -> list[tuple[Path, Path]]:
+    pdbs = sorted(Path(args.pdbs_path).rglob('*.pdb'))
+    msa = AlignIO.read(args.msa_path, format='fasta')
+    id_to_msa_index = create_msa_index_table(msa)
     target_indices = parse_msa_target_indices(args.target_idxs_path)
 
-    if not os.path.exists('../data/docking_files/'):
-        os.makedirs('../data/docking_files')
+    if not os.path.exists(args.out_folder):
+        os.makedirs(args.out_folder)
+
+    if args.n_workers and args.n_workers > 1:
+        tasks = [(pdb, args, msa, id_to_msa_index, target_indices) for pdb in pdbs]
+        with ProcessPoolExecutor(max_workers=args.n_workers) as executor:
+            results = list(executor.map(_prepare_single_pdb, tasks))
+        return [item for result in results for item in result]
 
     out = []
     for pdb in pdbs:
-        name = pdb.stem
-        out_folder = os.path.join(args.out_folder, name)
-        try:
-            pockets = pd.read_csv(f'{args.pocket_preds_path}/{name}.pdb_predictions.csv', skipinitialspace=True)
-        except FileNotFoundError:
-            raise FileExistsError(f'Predictions for {name} not found. Use run_p2rank.py to generate the pocket predictions first.')
-
-        h_path = protonate_pdb(pdb, args.ph)
-        structure = parser.get_structure(pdb.stem, pdb)
-
-        # Determine the pocket for docking
-        if args.pocket_selection_mode == 'pca_close':
-            best = filter_pockets_pca(structure, pockets, tol=args.tol, residue_id=args.pca_residue_id, include_best=args.include_best, mode=args.pocket_dist_mode)
-        else:
-            best = find_best_pockets(structure, pockets, msa, id_to_msa_index, target_indices, tol=args.tol, mode=args.pocket_selection_mode, include_best=args.include_best,
-                                    k=args.k, dist_mode=args.pocket_dist_mode)
-            
-        residues = {r.get_id()[1] : r for r in list(structure.get_residues())}
-        save_best_pockets(best, out_folder)
-        if best.shape[0] == 0:
-            continue
-        if len(best.shape) > 1:
-            for _, pocket in best.iterrows():
-                center = pocket['center_x'], pocket['center_y'], pocket['center_z']
-                center_np = np.asarray(center)
-                box_size = calculate_box_size(residues, center_np, pocket, min_size=args.min_box_size, padding=args.padding)
-                out.append(prepare_receptor(h_path, f'p{pocket["rank"]}', center, (box_size, box_size, box_size), out_folder=out_folder))
-        else:
-            center = best['center_x'], best['center_y'], best['center_z']
-            center_np = np.asarray(center)
-            box_size = calculate_box_size(residues, center_np, best, min_size=args.min_box_size, padding=args.padding)
-            out.append(prepare_receptor(h_path, f'p{best["rank"]}', center, (box_size, box_size, box_size), out_folder=out_folder))
+        out.extend(_prepare_single_pdb((pdb, args, msa, id_to_msa_index, target_indices)))
 
     return out
 
@@ -338,7 +354,7 @@ def add_arguments(parser : argparse.ArgumentParser):
     parser.add_argument('--ph', default=7, type=int, help='pH for protonation')
     parser.add_argument('--msa_path', default='../data/aligned_sequences.fasta', help='MSA for the receptors, used for selecting pockets outside the membrane.')
     parser.add_argument('--target_idxs_path', default='../data/msa_index_ranges.txt', help='File containing indices to the MSA for membrane pocket selection')
-    parser.add_argument('--min_box_size', default=23, type=int, help='Minimum box size for simulations')
+    parser.add_argument('--min_box_size', default=15, type=int, help='Minimum box size for simulations')
     parser.add_argument('--padding', default=2, type=int, help='Simulation box padding')
     parser.add_argument('--tol', default=10, type=int, help='Maximum pocket center distance from the centroid determined by pocket selection')
     parser.add_argument('--pocket_selection_mode', default='pca_close', choices=['best', 'close_best', 'close_all', 'top_k', 'pca_close'], help='''
@@ -354,7 +370,8 @@ def add_arguments(parser : argparse.ArgumentParser):
     parser.add_argument('--pocket_dist_mode', choices=['min', 'center'], default='min', help='Whether the pocket distance is calculated from the or the closest atom or the center of the pocket.')
     parser.add_argument('-k', default=5, type=int, help='If top_k mode is used, this is the k value.')
     parser.add_argument('-v', '--verbose', default=1, type=int, help='Verbosity level')
-    parser.add_argument('--include_best', default=True, type=bool, help='Always include the best pocket in the selected pockets. Relevant for the "close" pocket selection mode.')
+    parser.add_argument('--include_best', default=False, type=bool, help='Always include the best pocket in the selected pockets. Relevant for the "close" pocket selection mode.')
+    parser.add_argument('--n_workers', default=1, type=int, help='Number of worker processes for preparing receptors in parallel. Set to 1 to disable multiprocessing.')
     parser.add_argument('-o', '--out_folder', default='../data/docking_files')
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

@@ -2,14 +2,20 @@ name: dock
 channels:
   - conda-forge
   - defaults
+  - bioconda
 dependencies:
   - python~=3.11
   - rdkit
+  - openjdk=17
   - meeko
   - pdbfixer
   - ProDy
-  - pip:
-      - numpy
-      - pandas
-      - requests
-      - streamlit
+  - py3dmol
+  - numpy
+  - pandas
+  - requests
+  - streamlit
+  - molscrub 
+  - multiprocess
+  - chemicalite
+  - reduce
