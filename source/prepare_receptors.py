@@ -4,7 +4,7 @@ import numpy as np
 import argparse
 import os
 
-from utils import locate_file, l2_norm, get_path_root
+from utils import l2_norm
 from pathlib import Path
 from Bio.PDB import Structure, PDBParser
 from pdbfixer import PDBFixer
@@ -13,17 +13,13 @@ from Bio.Align import MultipleSeqAlignment
 from Bio import AlignIO
 from datetime import datetime
 
-mk_prepare_receptor = locate_file(from_path = get_path_root(), query_path = "mk_prepare_receptor.py", query_name = "mk_prepare_receptor.py")
-#reduce = locate_file(from_path = Path(str(get_path_root().parent) + '/lib'), query_path = "reduce.py", query_name = "reduce.py")
-
-def prepare_receptor(pdb_path : Path, pocket_id, center_coords, box_sizes) -> list[Path]:
+def prepare_receptor(pdb_path : Path, pocket_id, center_coords, box_sizes, out_folder='../data/docking_files') -> list[Path]:
     # Export receptor atoms
     center_x, center_y, center_z = center_coords
     size_x, size_y, size_z = box_sizes
-    out_path = f'../data/docking_files/{pdb_path.stem}_{pocket_id}'
+    out_path = f'{out_folder}/{pdb_path.stem}_{pocket_id}'
     command = [
-        "python",
-        str(mk_prepare_receptor),
+        "mk_prepare_receptor.py",
         "-i", str(pdb_path),
         "-o", out_path,
         "-p",  # Generate PDBQT file
@@ -52,10 +48,97 @@ def parse_msa_target_indices(path):
 
     return res
 
-def find_best_pockets(struct : Structure, pockets : pd.DataFrame, msa : MultipleSeqAlignment, id_to_msa_index : dict, target_indices, tol=20, mode = 'close_all',
-                      verbose=1, include_best=True, k=5):
+def get_residue(structure, residue_id):
+    for chain in structure.get_chains():
+        for res in chain:
+            if res.get_id()[1] == residue_id:
+                residue = res
+                break
+        if residue is not None:
+            break
+    if residue is None:
+        raise ValueError(f"Residue {residue_id} not found in structure.")
+    
+    return residue
+
+def compute_pca_components(atom_coords, n_components=2):
+    """Return the top PCA component vectors for the given atom coordinates."""
+    coords = np.asarray(atom_coords, dtype=float)
+    if coords.ndim != 2 or coords.shape[1] != 3:
+        raise ValueError("atom_coords must be an array of shape (N, 3)")
+
+    centroid = coords.mean(axis=0)
+    centered = coords - centroid
+    cov = np.dot(centered.T, centered) / max(centered.shape[0] - 1, 1)
+    eigvals, eigvecs = np.linalg.eigh(cov)
+    order = np.argsort(eigvals)[::-1]
+    components = eigvecs[:, order[:n_components]].T
+    return components
+
+def compute_point_projection(point, vector, origin=None):
+    point = np.asarray(point, dtype=float)
+    vector = np.asarray(vector, dtype=float)
+    if origin is not None:
+        origin = np.asarray(origin, dtype=float)
+        point = point - origin
+
+    norm2 = np.dot(vector, vector)
+    if norm2 == 0:
+        raise ValueError("Projection vector must not be zero-length")
+
+    return np.dot(point, vector) / norm2 * vector
+
+def compute_residue_pca_projection(structure, residue_id, component=0, atom_coords=None):
+    if atom_coords is None:
+        atom_coords = [atom.get_coord() for atom in structure.get_atoms()]
+    point = np.mean([atom.get_coord() for atom in get_residue(structure, residue_id)], axis=0)
+    components = compute_pca_components(atom_coords, n_components=component + 1)
+    origin = np.mean(atom_coords, axis=0)
+    return compute_point_projection(point, components[component], origin=origin) + origin
+
+
+def filter_pockets_pca(structure : Structure, pockets : pd.DataFrame, tol=15, residue_id=5, verbose=0, include_best=False, mode='min'):
+    extracellular_part_center = compute_residue_pca_projection(structure, residue_id=residue_id)
+    residues = list(structure.get_residues())
+    # Mask pockets according to their distance from the centroid of selected residues 
+    mask = []
+    distances = []
+
     if verbose > 0:
-        print(struct.id)
+        print('Pocket distance from selected residue centroid, order as in the predictions .csv:')
+
+    if mode == 'min':
+        for _, pocket in pockets.iterrows():
+            min_dist = np.inf
+            for residue in pocket['residue_ids'].split(' '):
+                idx = int(residue[2:]) # residue ids have a pattern of A_123
+
+                # Iterate through atoms of the residue to find the closest one
+                for atom in residues[idx].get_atoms():
+                    c_dist = l2_norm(atom.get_coord() - extracellular_part_center)
+                    if c_dist < min_dist:
+                        min_dist = c_dist
+                    
+            if verbose > 0:
+                print(min_dist)
+            mask.append(min_dist < tol)
+            distances.append(min_dist)
+
+    else:
+        mask = l2_norm(pockets[['center_x', 'center_y', 'center_z']].to_numpy(float) - extracellular_part_center) < tol
+    
+    if include_best:
+        # Always include the best pocket
+        mask[0] = True
+    if verbose > 0:
+        print(mask)
+    pockets['min_surface_centroid_distance'] = distances
+    return pockets[mask]
+
+def find_best_pockets(structure : Structure, pockets : pd.DataFrame, msa : MultipleSeqAlignment, id_to_msa_index : dict, target_indices, tol=20, mode = 'close_all',
+                      verbose=1, dist_mode='min', include_best=True, k=5):
+    if verbose > 0:
+        print(structure.id)
 
     pockets = pockets.sort_values('score', ascending=False)
     if mode == 'best':
@@ -67,7 +150,7 @@ def find_best_pockets(struct : Structure, pockets : pd.DataFrame, msa : Multiple
     # List containing a mapping from MSA indices to last preceding sequence index
     ungapped_index = []
     idx = 0
-    seq_row = id_to_msa_index[struct.id]
+    seq_row = id_to_msa_index[structure.id]
     for i in range(msa.get_alignment_length()):
         ungapped_index.append(idx)
         if msa[seq_row, i] != '-':
@@ -86,12 +169,12 @@ def find_best_pockets(struct : Structure, pockets : pd.DataFrame, msa : Multiple
         if not os.path.exists(f'../temp'):
             os.makedirs('../temp', exist_ok=True)
             with open('../temp/no_match_prots.txt', 'w') as f:
-                f.write(f'{struct.id}\n')
+                f.write(f'{structure.id}\n')
 
         else:
             with open(f'../temp/no_match_prots.txt', 'r') as f:
                 lines = f.readlines()
-                lines.append(f'{struct.id}\n')
+                lines.append(f'{structure.id}\n')
 
             with open(f'../temp/no_match_prots.txt', 'w') as f:
                 f.writelines(lines)
@@ -99,7 +182,7 @@ def find_best_pockets(struct : Structure, pockets : pd.DataFrame, msa : Multiple
         return pockets.iloc[0]
 
     # Calculate a centroid from the target residues
-    residues = list(struct.get_residues())
+    residues = list(structure.get_residues())
     centroid = np.average([residues[i].center_of_mass() for i in residue_indices], axis=0)
 
     # Mask pockets according to their distance from the centroid of selected residues 
@@ -107,26 +190,31 @@ def find_best_pockets(struct : Structure, pockets : pd.DataFrame, msa : Multiple
 
     if verbose > 0:
         print('Pocket distance from selected residue centroid, order as in the predictions .csv:')
-    for _, pocket in pockets.iterrows():
-        min_dist = np.inf
-        for residue in pocket['residue_ids'].split(' '):
-            idx = int(residue[2:]) # residue ids have a pattern of A_123
-            # Iterate through atoms of the residue to find the furthest one
-            try:
-    	        for atom in residues[idx].get_atoms():
-                    c_dist = l2_norm(atom.get_coord() - centroid)
-                    if c_dist < min_dist:
-                        min_dist = c_dist
-            except IndexError as e:
-                print(e)
-                print(struct.id)
-                print(idx)
-                print(len(list(struct.get_residues())))
-                
-        #center_x, center_y, center_z = pocket['center_x'], pocket['center_y'], pocket['center_z']
-        if verbose > 0:
-            print(min_dist)
-        mask.append(min_dist < tol)
+
+    if dist_mode == 'min':
+        for _, pocket in pockets.iterrows():
+            min_dist = np.inf
+            for residue in pocket['residue_ids'].split(' '):
+                idx = int(residue[2:]) # residue ids have a pattern of A_123
+                # Iterate through atoms of the residue to find the furthest one
+                try:
+                    for atom in residues[idx].get_atoms():
+                        c_dist = l2_norm(atom.get_coord() - centroid)
+                        if c_dist < min_dist:
+                            min_dist = c_dist
+                except IndexError as e:
+                    print(e)
+                    print(structure.id)
+                    print(idx)
+                    print(len(list(structure.get_residues())))
+                    
+            #center_x, center_y, center_z = pocket['center_x'], pocket['center_y'], pocket['center_z']
+            if verbose > 0:
+                print(min_dist)
+            mask.append(min_dist < tol)
+
+    else:
+        mask = l2_norm(pockets[['center_x', 'center_y', 'center_z']].to_numpy(float) - centroid) < tol
     
     if include_best:
         # Always include the best pocket
@@ -190,6 +278,10 @@ def protonate_pdb(pdb_path : Path, ph=7, out_path=None):
     PDBFile.writeFile(fixer.topology, fixer.positions, open(out_path, 'w'))
     return Path(out_path)
 
+def save_best_pockets(pockets, out_folder):
+    os.makedirs(out_folder, exist_ok=True)
+    pockets.to_csv(f'{out_folder}/filtered_pockets.csv')
+
 def prepare_receptors(args) -> list[tuple[Path, Path]]:
     pdbs = list(Path(args.pdbs_path).rglob('*.pdb'))
     parser = PDBParser()
@@ -206,29 +298,37 @@ def prepare_receptors(args) -> list[tuple[Path, Path]]:
     out = []
     for pdb in pdbs:
         name = pdb.stem
+        out_folder = os.path.join(args.out_folder, name)
         try:
             pockets = pd.read_csv(f'{args.pocket_preds_path}/{name}.pdb_predictions.csv', skipinitialspace=True)
         except FileNotFoundError:
             raise FileExistsError(f'Predictions for {name} not found. Use run_p2rank.py to generate the pocket predictions first.')
 
         h_path = protonate_pdb(pdb, args.ph)
-        molecule = parser.get_structure(pdb.stem, pdb)
+        structure = parser.get_structure(pdb.stem, pdb)
 
-        # Determine the pocket for docking        
-        best = find_best_pockets(molecule, pockets, msa, id_to_msa_index, target_indices, tol=args.tol, mode=args.pocket_selection_mode, include_best=args.include_best,
-                                 k=args.k)
-        residues = {r.get_id()[1] : r for r in list(molecule.get_residues())}
+        # Determine the pocket for docking
+        if args.pocket_selection_mode == 'pca_close':
+            best = filter_pockets_pca(structure, pockets, tol=args.tol, residue_id=args.pca_residue_id, include_best=args.include_best, mode=args.pocket_dist_mode)
+        else:
+            best = find_best_pockets(structure, pockets, msa, id_to_msa_index, target_indices, tol=args.tol, mode=args.pocket_selection_mode, include_best=args.include_best,
+                                    k=args.k, dist_mode=args.pocket_dist_mode)
+            
+        residues = {r.get_id()[1] : r for r in list(structure.get_residues())}
+        save_best_pockets(best, out_folder)
+        if best.shape[0] == 0:
+            continue
         if len(best.shape) > 1:
             for _, pocket in best.iterrows():
                 center = pocket['center_x'], pocket['center_y'], pocket['center_z']
                 center_np = np.asarray(center)
                 box_size = calculate_box_size(residues, center_np, pocket, min_size=args.min_box_size, padding=args.padding)
-                out.append(prepare_receptor(h_path, f'p{pocket["rank"]}', center, (box_size, box_size, box_size)))
+                out.append(prepare_receptor(h_path, f'p{pocket["rank"]}', center, (box_size, box_size, box_size), out_folder=out_folder))
         else:
             center = best['center_x'], best['center_y'], best['center_z']
             center_np = np.asarray(center)
             box_size = calculate_box_size(residues, center_np, best, min_size=args.min_box_size, padding=args.padding)
-            out.append(prepare_receptor(h_path, f'p{best["rank"]}', center, (box_size, box_size, box_size)))
+            out.append(prepare_receptor(h_path, f'p{best["rank"]}', center, (box_size, box_size, box_size), out_folder=out_folder))
 
     return out
 
@@ -240,17 +340,22 @@ def add_arguments(parser : argparse.ArgumentParser):
     parser.add_argument('--target_idxs_path', default='../data/msa_index_ranges.txt', help='File containing indices to the MSA for membrane pocket selection')
     parser.add_argument('--min_box_size', default=23, type=int, help='Minimum box size for simulations')
     parser.add_argument('--padding', default=2, type=int, help='Simulation box padding')
-    parser.add_argument('--tol', default=20, type=int, help='Maximum pocket center distance from the centroid of residues matched to the MSA indices for membrane pocket selection. Pockets further away are not considered when determining the best pocket.')
-    parser.add_argument('--pocket_selection_mode', default='close_all', choices=['best', 'close_best', 'close_all', 'top_k'], help='''
+    parser.add_argument('--tol', default=10, type=int, help='Maximum pocket center distance from the centroid determined by pocket selection')
+    parser.add_argument('--pocket_selection_mode', default='pca_close', choices=['best', 'close_best', 'close_all', 'top_k', 'pca_close'], help='''
                         "best" mode simply takes the highest scoring pocket from the P2rank prediction.
                         "close_best" mode only considers the best pocket from ones that are close to the external part of the protein, determined via the indices from target_idxs_path
                         "close_all" same as above, but docks to all close pockets
                         "top_k" returns top k pockets by score
+                        "pca_close" filters pockets by determining the extracellular part of the protein using the first PCA eigenvector. 
+                        Center coordinates of residue with ID [pca_residue_id] are projected onto this vector, 
+                        and the projected point serves as a centroid from which pocket distances are computed, and filtered according to [tol].
                         ''')
+    parser.add_argument('--pca_residue_id', default=5, type=int, help='Which residue ID to consider as a reference point for the extracellular part of the protein. Relevant for pca_close mode.')
+    parser.add_argument('--pocket_dist_mode', choices=['min', 'center'], default='min', help='Whether the pocket distance is calculated from the or the closest atom or the center of the pocket.')
     parser.add_argument('-k', default=5, type=int, help='If top_k mode is used, this is the k value.')
     parser.add_argument('-v', '--verbose', default=1, type=int, help='Verbosity level')
     parser.add_argument('--include_best', default=True, type=bool, help='Always include the best pocket in the selected pockets. Relevant for the "close" pocket selection mode.')
-
+    parser.add_argument('-o', '--out_folder', default='../data/docking_files')
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     add_arguments(parser)

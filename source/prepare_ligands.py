@@ -5,10 +5,6 @@ import os
 import subprocess
 import pandas as pd
 from pathlib import Path
-from utils import locate_file, get_path_root
-
-mk_prepare_ligand = locate_file(from_path = get_path_root(), query_path = "mk_prepare_ligand.py", query_name = "mk_prepare_ligand.py")
-scrub = locate_file(from_path = Path.cwd().parent, query_path = "scrub.py", query_name = "scrub.py")
 
 def prepare_ligand(ligand_smiles, ph = 7, skip_tautomer=False, skip_acidbase=False, ligand_name='test_ligand') -> Path:
     # Adapted from https://colab.research.google.com/drive/1cHSl78lBPUc_J1IZxLgN4GwD_ADmohVU?usp=sharing#scrollTo=qBQN6WzwvkGB
@@ -23,12 +19,12 @@ def prepare_ligand(ligand_smiles, ph = 7, skip_tautomer=False, skip_acidbase=Fal
     output_path = f'../data/prepared_ligands/{ligand_name}.pdbqt'
     # Scrub the molecule
     subprocess.run([
-        'python', str(scrub), ligand_smiles, '-o', ligandSDF, '--ph', str(ph), args
+        'scrub.py', ligand_smiles, '-o', ligandSDF, '--ph', str(ph), args
     ], check=True)
 
     # Runs meeko mk_prepare_ligand with the following arguments
     subprocess.run([
-        'python', str(mk_prepare_ligand), '-i', f'../data/{ligandSDF}', '-o', output_path
+        'mk_prepare_ligand.py', '-i', f'../data/{ligandSDF}', '-o', output_path
     ], check=True)
 
     return Path(output_path)
@@ -66,14 +62,14 @@ def prepare_ligands(args):
 
         # Scrub the molecules
         print('running scrub')
-        scrub_cmd = ['python', str(scrub), smi_path, '-o', sdf_path, '--ph', str(args.ph)]
+        scrub_cmd = ['scrub.py', smi_path, '-o', sdf_path, '--ph', str(args.ph)]
         if len(scrub_additional_args) > 0:
             scrub_cmd.extend(scrub_additional_args.split(' ')[:-1])
         
         subprocess.run(scrub_cmd, check=True)
-        print('running mk')
+        print('running mk_prepare_ligand')
         subprocess.run([
-            'python', str(mk_prepare_ligand), '-i', sdf_path, '--multimol_outdir', output_path
+            'mk_prepare_ligand.py', '-i', sdf_path, '--multimol_outdir', output_path
         ], check=True)
         
     else:
