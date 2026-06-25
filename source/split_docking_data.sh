@@ -24,7 +24,7 @@ size=$((count / $n_splits))
 
 mkdir "$splits_dir"
 for i in $(seq 0 $(($n_splits - 1))); do
-    out_dir = ./"$splits_dir"/splits_"$i"
+    out_dir=./"$splits_dir"/splits_"$i"
 	mkdir "$out_dir"
 	for j in $(seq 0 $size); do
                 index=$((i * size + j))
