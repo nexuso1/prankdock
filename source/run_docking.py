@@ -6,33 +6,29 @@ from prody import *
 from pathlib import Path
 import subprocess
 
-def dock_ligands(receptor_info : list[tuple[Path, Path]], ligands_folder, exhaustiveness=32):
+def dock_ligands(receptor_info : list[tuple[Path, Path]], ligands_folder, output_dir='../output', exhaustiveness=32):
     if not os.path.exists('../data/docking_files'):
         os.makedirs('../data/docking_files')
 
     if not os.path.exists('../output'):
         os.mkdir('../output')
     
-    if sys.platform == 'win32':
-        ligands_path_cmd = ' --batch '.join(list(glob(f'..\data\{ligands_folder}\*.pdbqt')))
-        
-    else:
-        ligands_path_cmd =  Path(f'../data/{ligands_folder}/*.pdbqt')
-    
-    ligands = [Path(p).stem for p in glob(f'..\data\{ligands_folder}\*.pdbqt')]
+    ligands = [Path(p).stem for p in glob(f'{ligands_folder}/*.pdbqt')]
     for receptor, config in receptor_info:
-        out_path = f'../output/{receptor.stem}'.removesuffix('_prepared')
+        receptor_id = receptor.stem.split('_')[0] # <id>_H_p<pocket_num>*
+        pocket = receptor.stem.split('_')[2].removesuffix('.pdbqt')
+        out_path = f'{output_dir}/{receptor_id}/{pocket}'.removesuffix('_prepared')
         if not os.path.exists(out_path):
             os.makedirs(out_path, exist_ok=True)
         elif all([os.path.exists(f'{out_path}/{lig}_out.pdbqt') for lig in ligands]):
-            print(f'Already finished {receptor.stem}, continuing..')
+            print(f'Already finished {receptor_id} pocket {pocket}, continuing..')
             continue
 
         print(f'Docking ligands to {receptor.stem}...')
         command = ' '.join([
             'vina',
             '--receptor', str(receptor),
-            '--batch', str(ligands_path_cmd),
+            '--batch', f'{ligands_folder}/*.pdbqt',
             '--config', str(config),
             f'--exhaustiveness={exhaustiveness}',
             '--cpu', str(os.cpu_count()),
@@ -53,5 +49,6 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--dock_files_path', default='../data/docking_files', help='Path to the folder where the preprared receptor .pdbqt files and vina configs are stored.')
     parser.add_argument('-l', '--ligands_path', default='../data/prepared_ligands', help='Folder containing prepared ligands for docking.')
     parser.add_argument('-e', '--exhaustiveness', type=int, default=32, help='Search exhaustiveness for Vina')
+    parser.add_argument('-o', '--output_dir', default='../output')
     args = parser.parse_args()
     run_docking(args)
