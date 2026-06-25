@@ -42,7 +42,7 @@ def run_docking(args):
     receptors = [Path(r) for r in receptors]
     configs = [f'{rec.parent}/{rec.stem}.box.txt' for rec in receptors]
     receptor_info = list(zip(receptors, configs))
-    dock_ligands(receptor_info, args.ligands_path, exhaustiveness=args.exhaustiveness)
+    dock_ligands(receptor_info, args.ligands_path, exhaustiveness=args.exhaustiveness, output_dir=args.output_dir)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
