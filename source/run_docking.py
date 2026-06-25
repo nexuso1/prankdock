@@ -96,6 +96,6 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--dock_files_path', default='../data/docking_files', help='Path to the folder where the preprared receptor .pdbqt files and vina configs are stored.')
     parser.add_argument('-l', '--ligands_path', default='../data/prepared_ligands', help='Folder containing prepared ligands for docking.')
     parser.add_argument('-e', '--exhaustiveness', type=int, default=32, help='Search exhaustiveness for Vina')
-    parser.add_argument('-o', '--output_dir', default='../output')
+    parser.add_argument('-o', '--output_dir', default='../output/docking')
     args = parser.parse_args()
     run_docking(args)
