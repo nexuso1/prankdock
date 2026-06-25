@@ -30,7 +30,7 @@ mkdir "$out_dir"
 
 
 for i in $(seq 0 $(($prot_count - 1))); do
-	echo $i
+	echo $i/$prot_count
     
 	cp "${qts[i]}" "$out_dir"
 	cp "${boxes[i]}" "$out_dir"
