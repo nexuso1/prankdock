@@ -24,21 +24,21 @@ size=$((count / $n_splits))
 
 mkdir "$splits_dir"
 for i in $(seq 0 $(($n_splits - 1))); do
+	echo $i
     out_dir=./"$splits_dir"/splits_"$i"
 	mkdir "$out_dir"
 	for j in $(seq 0 $size); do
-                index=$((i * size + j))
-		fname=
+		index=$((i * size + j))
 		cp "${qts[index]}" "$out_dir"
-                cp "${boxes[index]}" "$out_dir"
+		cp "${boxes[index]}" "$out_dir"
 		cp "${configs[index]}" "$out_dir"
 	done
 done
 
 for i in $(seq $(($count - $count % $size)) $(($count - 1))); do
 	echo $i
-        s_idx=$((n_splits - 1))
-        cp "${qts[i]}" "./splits_$s_idx/"
-        cp "${boxes[i]}" "./splits_$s_idx/"
+	s_idx=$((n_splits - 1))
+	cp "${qts[i]}" "./splits_$s_idx/"
+	cp "${boxes[i]}" "./splits_$s_idx/"
 	cp "${configs[i]}" "./splits_$s_idx/"
 done
