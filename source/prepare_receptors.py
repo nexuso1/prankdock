@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import argparse
 import os
+import json
 from concurrent.futures import ProcessPoolExecutor
 
 from utils import l2_norm
@@ -26,16 +27,15 @@ def prepare_receptor(pdb_path : Path, pocket_id, center_coords, box_sizes, out_f
         "-p",  # Generate PDBQT file
         "-v",  # Generate Vina config
         "--box_center", str(center_x), str(center_y), str(center_z),
-        "--box_size", str(size_x), str(size_y), str(size_z),
-        "-a"
+        "--box_size", str(size_x), str(size_y), str(size_z)
     ]
     try:
         subprocess.run(command, check=True)
 
     except subprocess.CalledProcessError as e:
         print(e)
-        with open('../data/problem_pdbs.txt', 'a') as f:
-            f.write(str(pdb_path))
+        with open(f'{out_folder}/problem_pdbs.txt', 'a') as f:
+            f.write(str(pdb_path) + '\n')
 
     return (Path(f'{out_path}.pdbqt'), Path(f'{out_path}.box.txt'))
 
@@ -122,18 +122,19 @@ def filter_pockets_pca(structure : Structure, pockets : pd.DataFrame, residues, 
                     
             if verbose > 0:
                 print(min_dist)
-            mask.append(min_dist < tol)
             distances.append(min_dist)
 
     else:
-        mask = l2_norm(pockets[['center_x', 'center_y', 'center_z']].to_numpy(float) - extracellular_part_center) < tol
-    
+        distances = l2_norm(pockets[['center_x', 'center_y', 'center_z']].to_numpy(float) - extracellular_part_center) 
+  
+    pockets['min_surface_centroid_distance'] = distances
+    mask = pockets['min_surface_centroid_distance'] < tol
     if include_best:
         # Always include the best pocket
         mask[0] = True
     if verbose > 0:
         print(mask)
-    pockets['min_surface_centroid_distance'] = distances
+
     return pockets[mask]
 
 def find_best_pockets(structure : Structure, pockets : pd.DataFrame, msa : MultipleSeqAlignment, id_to_msa_index : dict, target_indices, tol=20, mode = 'close_all',
@@ -262,21 +263,19 @@ def protonate_pdb(pdb_path : Path, ph=7, out_path=None):
     if out_path == None:
         out_path = f'../data/temp/{pdb_path.stem}_H.pdb'
 
+    fixer = PDBFixer(str(pdb_path))
+    fixer.findNonstandardResidues()
+    fixer.replaceNonstandardResidues()
+    fixer.removeHeterogens(keepWater=False)
+    fixer.findMissingResidues()
+    fixer.findMissingAtoms()
+    fixer.addMissingAtoms(seed=42)
+    # subprocess.run([
+    #    'reduce', '-BUILD', pdb_path, '>', out_path
+    # ])
+    fixer.addMissingHydrogens(ph)
 
-    # fixer = PDBFixer(str(pdb_path))
-    # fixer.findNonstandardResidues()
-    # print(fixer.nonstandardResidues)
-    # fixer.replaceNonstandardResidues()
-    # fixer.removeHeterogens(keepWater=False)
-    # fixer.findMissingResidues()
-    # fixer.findMissingAtoms()
-    # fixer.addMissingAtoms(seed=42)
-    subprocess.run([
-       'reduce', '-BUILD', pdb_path, '>', out_path
-    ])
-    #fixer.addMissingHydrogens(ph)
-
-    #PDBFile.writeFile(fixer.topology, fixer.positions, open(out_path, 'w'))
+    PDBFile.writeFile(fixer.topology, fixer.positions, open(out_path, 'w'))
     return Path(out_path)
 
 def save_best_pockets(pockets, out_folder):
@@ -335,6 +334,10 @@ def prepare_receptors(args) -> list[tuple[Path, Path]]:
 
     if not os.path.exists(args.out_folder):
         os.makedirs(args.out_folder)
+
+    # Save config
+    with open(os.path.join(args.out_folder, 'prep_receptors_config.json'), 'w') as f:
+        json.dump({ k : v for k, v in vars(args).items()}, f)
 
     if args.n_workers and args.n_workers > 1:
         tasks = [(pdb, args, msa, id_to_msa_index, target_indices) for pdb in pdbs]

@@ -4,14 +4,7 @@ import sys
 from glob import glob
 from prody import *
 from pathlib import Path
-from utils import locate_file
-import rdkit
 import subprocess
-
-print("rdkit version:", rdkit.__version__)
-
-vina = locate_file(from_path=Path.cwd().parent, query_path=f'vina*', query_name='AutoDock Vina')
-
 
 def dock_ligands(receptor_info : list[tuple[Path, Path]], ligands_folder, exhaustiveness=32):
     if not os.path.exists('../data/docking_files'):
@@ -37,7 +30,7 @@ def dock_ligands(receptor_info : list[tuple[Path, Path]], ligands_folder, exhaus
 
         print(f'Docking ligands to {receptor.stem}...')
         command = ' '.join([
-            str(vina),
+            'vina',
             '--receptor', str(receptor),
             '--batch', str(ligands_path_cmd),
             '--config', str(config),
@@ -49,10 +42,9 @@ def dock_ligands(receptor_info : list[tuple[Path, Path]], ligands_folder, exhaus
         print(f'Output saved to {out_path}')
 
 def run_docking(args):
-    print(args)
-    receptors = list(glob(f'{args.dock_files_path}/*.pdbqt'))
+    receptors = list(glob(f'{args.dock_files_path}/**/*.pdbqt', recursive=True))
     receptors = [Path(r) for r in receptors]
-    configs = [f'{args.dock_files_path}/{rec.stem}.box.txt' for rec in receptors]
+    configs = [f'{rec.parent}/{rec.stem}.box.txt' for rec in receptors]
     receptor_info = list(zip(receptors, configs))
     dock_ligands(receptor_info, args.ligands_path, exhaustiveness=args.exhaustiveness)
 

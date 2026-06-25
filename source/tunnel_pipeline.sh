@@ -13,6 +13,7 @@ SHELL_DEPTH=2.5
 CLUSTERING_THRESHOLD=4.5
 OUTPUT_DIR="../output/tunnel_results"
 CAVER_PATH="../../caver/caver.jar"
+PREP_RECEPTOR_DIR="../data/docking_files"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -p|--pockets)
@@ -36,6 +37,9 @@ while [[ $# -gt 0 ]]; do
             shift 2 ;;
         -i|--pdb_dir)
             PDB_DIR="$2"
+            shift 2 ;;
+        -r|--receptor_dir)
+            PREP_RECEPTOR_DIR="$2"
             shift 2 ;;
         -d|--shell_depth)
             SHELL_DEPTH="$2"
@@ -71,7 +75,7 @@ EOF
 
 # Configuration
 PDB_DIR="../data/pdbs"
-PREP_RECEPTOR_DIR="../data/docking_files"
+
 LIGAND_DIR="../data/prepared_ligands"
 CSV_DIR="../data/p2rank_output"
 

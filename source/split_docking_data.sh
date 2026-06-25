@@ -1,9 +1,12 @@
 #!/bin/bash
+
+root_dir=$1
+
 count=0
 declare qts=()
 declare boxes=()
 declare configs=()
-for file in $(ls ./docking_files/*.pdbqt); do
+for file in $(ls "$root_dir"/*.pdbqt); do
         qts+=($file)
         boxes+=(${file%.pdbqt}.box.pdb)
         configs+=(${file%.pdbqt}.box.txt)
