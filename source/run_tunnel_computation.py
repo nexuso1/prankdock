@@ -5,10 +5,14 @@ import re
 import shutil
 import subprocess
 import pandas as pd
+import numpy as np
+import glob
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Sequence
-
+from prepare_receptors import compute_residue_pca_projection
+from Bio.PDB import PDBParser
+from utils import l2_norm
 
 @dataclass
 class TunnelingConfig:
@@ -23,7 +27,10 @@ class TunnelingConfig:
     delta: float = 0.5
     shell_depth: float = 2.5
     clustering_threshold: float = 4.5
-    compute_tunnel_residues: bool = False
+    centroid_res_id: int = 5
+    tol : float = 5.0
+    filter_tunnels: bool = True
+    compute_tunnel_residues: bool = True
 
     def __str__(self):
         buf = ['argument,value']
@@ -44,7 +51,10 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument("--delta", type=float, default=0.3, help="Discretizer delta. 0.3A is the Caverdock default.")
     parser.add_argument("--shell_depth", type=float, default=4, help="CAVER shell depth")
     parser.add_argument("--clustering_threshold", type=float, default=5, help="CAVER clustering threshold")
-    parser.add_argument("--compute_tunnel_residues", type=bool, default=False, help="Compute tunnel residues")
+    parser.add_argument("--compute_tunnel_residues", type=bool, default=True, help="Compute tunnel residues. Set to True if using tunnel filtering.")
+    parser.add_argument("--filter_pockets", type=bool, default=True, help="Automatically filter tunnels based on their distance to membrane surface.")
+    parser.add_argument("--tol", type=float, default=12, help="Tunnel filtering surface distance tolerance, in Angstroms.")
+    parser.add_argument("--centroid_res_id", type=int, default=5, help="Index of the resiude from which a surface centroid will be computed.")
     parser.add_argument("--cd_image", type=str, default="../caverdock-1.2.sif", help="Path to CaverDock Apptainer image")
     return parser
 
@@ -92,6 +102,31 @@ def read_pocket_coordinates(csv_path: Path, pocket_name: str) -> tuple[float, fl
                     return None
     return None
 
+def get_tunnel_endpoints(pdb_filename):
+    first_coords = None
+    last_coords = None
+
+    with open(pdb_filename, 'r') as file:
+        for line in file:
+            # Only process lines starting with ATOM or HETATM
+            if line.startswith("ATOM") or line.startswith("HETATM"):
+                # Split the line by any whitespace
+                parts = line.split()
+
+                # In a standard ATOM line split, indices are:
+                # parts[6] -> X, parts[7] -> Y, parts[8] -> Z
+                x = float(parts[6])
+                y = float(parts[7])
+                z = float(parts[8])
+                
+                current_coords = (x, y, z)
+                
+                if first_coords is None:
+                    first_coords = current_coords
+                
+                last_coords = current_coords
+
+    return first_coords, last_coords
 
 def write_config(path: Path, center_coords : tuple[float], clustering_threshold: float, shell_depth: float, awvd: bool = False, compute_tunnel_residues=False) -> None:
     cx, cy, cz = center_coords
@@ -100,9 +135,11 @@ def write_config(path: Path, center_coords : tuple[float], clustering_threshold:
         f"frame_clustering_threshold {clustering_threshold}",
         f"shell_depth {shell_depth}",
         f"compute_tunnel_residues {'yes' if compute_tunnel_residues else 'no'}",
+        "residue_contact_distance 2.0",
         "save_dynamics_visualization yes",
         "seed 42",
         "swap no",
+        "awvd no"
         "automatic shell radius yes"
     ]
     path.write_text("\n".join(lines) + "\n")
@@ -188,7 +225,25 @@ def discretize_tunnel(
     print(f"Saved discretized tunnel to {output_path}")
     return output_path
 
+def filter_tunnels(tunnel_endpoints, pdb_path, centroid_residue_id, tol=5):
+    parser = PDBParser()
+    structure = parser.get_structure(pdb_path.stem, pdb_path)
+    extracellular_part_center = compute_residue_pca_projection(structure, residue_id=centroid_residue_id)
+    res = []
+    for tunnel, endpoints in tunnel_endpoints.items():
+        min_dist = np.inf
+        for point in endpoints:
 
+            # Iterate through atoms of the residue to find the closest one
+                c_dist = l2_norm(point - extracellular_part_center)
+                if c_dist < min_dist:
+                    min_dist = c_dist
+
+        if min_dist < tol:
+            res.append(tunnel)
+
+    return res
+ 
 def process_pocket(
     pocket_idx: int,
     prot_name: str,
@@ -219,13 +274,13 @@ def process_pocket(
         return []
 
     created_tunnels: list[Path] = []
+    tunnel_endpoints = { Path(path) : get_tunnel_endpoints(path) for path in glob.glob(str(prot_out_dir / 'data' / 'clusters' / '*.pdb')) }
 
-    for tunnel_idx in get_tunnel_indices(config.tunnels, prot_out_dir):
-        tunnel_id = f"{tunnel_idx:03d}"
-        tunnel_path = prot_out_dir / "data" / "clusters_timeless" / f"tun_cl_{tunnel_id}_1.pdb"
-        discr_tunnel = prot_out_dir / "data" / f"tunnel_{tunnel_idx}.dsd"
-        log_path = prot_out_dir / f"discretizer_tunnel{tunnel_idx}.log"
-        print(f"--- Tunnel {tunnel_idx} for {prot_name} ({pocket_name}) ---")
+    for tunnel_path in filter_tunnels(tunnel_endpoints, pdb_path, config.centroid_res_id, config.tol):
+        tunnel_id = tunnel_path.stem.removesuffix('.pdb').split('_')[-1]
+        discr_tunnel = prot_out_dir / "data" / f"tunnel_{tunnel_id}.dsd"
+        log_path = prot_out_dir / f"discretizer_tunnel{tunnel_id}.log"
+        print(f"--- Tunnel {tunnel_id} for {prot_name} ({pocket_name}) ---")
         result_path = discretize_tunnel(
             tunnel_path=tunnel_path,
             output_path=discr_tunnel,
@@ -315,7 +370,9 @@ def main() -> None:
         delta=args.delta,
         shell_depth=args.shell_depth,
         clustering_threshold=args.clustering_threshold,
-        compute_tunnel_residues=args.compute_tunnel_residues
+        compute_tunnel_residues=args.compute_tunnel_residues,
+        centroid_res_id=args.centroid_res_id,
+        tol=args.tol
     )
     run_tunneling(config)
 
