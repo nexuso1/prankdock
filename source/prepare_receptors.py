@@ -261,7 +261,7 @@ def calculate_box_size(residues, center, pocket, min_size=0, padding=2):
 
 def protonate_pdb(pdb_path : Path, ph=7, out_path=None):
     if out_path == None:
-        out_path = f'../data/temp/{pdb_path.stem}_H.pdb'
+        out_path = f'../data/protonated_pdbs/{pdb_path.stem}_H.pdb'
 
     fixer = PDBFixer(str(pdb_path))
     fixer.findNonstandardResidues()
