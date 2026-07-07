@@ -18,7 +18,8 @@ mkdir -p "$P2RANK_DIR"
 
 # Download the p2rank archive
 echo "Downloading p2rank 2.5.1..."
-wget -O -q --show_progress "$REPO_DIR"/tmp/p2rank_2.5.1.tar.gz https://github.com/rdk/p2rank/releases/download/2.5.1/p2rank_2.5.1.tar.gz
+tmp_path="$REPO_DIR"/tmp/p2rank_2.5.1.tar.gz
+wget -q --show-progress -O "$tmp_path" https://github.com/rdk/p2rank/releases/download/2.5.1/p2rank_2.5.1.tar.gz
 
 # Check if download was successful
 if [ $? -ne 0 ]; then
@@ -28,7 +29,8 @@ fi
 
 # Extract the archive
 echo "Extracting p2rank..."
-tar -xzf "$REPO_DIR"/tmp/p2rank_2.5.1.tar.gz -C "$P2RANK_DIR" --strip-components=1
+
+tar -xzf "$tmp_path" -C "$P2RANK_DIR" --strip-components=1
 
 # Check if extraction was successful
 if [ $? -ne 0 ]; then
@@ -37,13 +39,13 @@ if [ $? -ne 0 ]; then
 fi
 
 # Clean up the downloaded archive
-rm /tmp/p2rank_2.5.1.tar.gz
+rm "$tmp_path"
 
 echo "p2rank has been successfully downloaded and extracted to $P2RANK_DIR"
 
 # Download CaverDock
 echo "Downloading CaverDock ..."
-wget -O -q --show-progress "$CAVERDOCK_PATH" https://loschmidt.chemi.muni.cz/static/releases/caverdock/1.2/caverdock-1.2.sif
+wget -q --show-progress -O "$CAVERDOCK_PATH" https://loschmidt.chemi.muni.cz/static/releases/caverdock/1.2/caverdock-1.2.sif
 if [ $? -ne 0 ]; then
     echo "Error: Failed to download CaverDock"
     exit 1
@@ -52,17 +54,18 @@ echo "Done. Saved to $CAVERDOCK_PATH"
 
 # Download CAVER
 echo "Downloading CAVER..."
-wget -O -q --show-progress "$REPO_DIR"/tmp/caver_3.0.zip https://www.caver.cz/fil/download/caver30/301/caver_3.0.zip
+tmp_path="$REPO_DIR"/tmp/caver_3.0.zip
+wget -q --show-progress -O "$tmp_path" https://www.caver.cz/fil/download/caver30/301/caver_3.0.zip
 echo "Extracting CAVER..."
 mkdir -p "$CAVER_DIR"
-unzip "$REPO_DIR"/tmp/caver_3.0.zip -d "$CAVER_DIR"
+unzip "$tmp_path" -d "$CAVER_DIR"
 
 if [ $? -ne 0 ]; then
     echo "Error: Failed to extract CAVER"
     exit 1
 fi
 
-rm "$REPO_DIR"/tmp/caver_3.0.zip
+rm "$tmp_path"
 
 echo "Done. Extracted to $CAVER_DIR"
 
