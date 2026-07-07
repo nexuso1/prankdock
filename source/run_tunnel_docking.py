@@ -92,9 +92,8 @@ def main() -> None:
             # The prepare-conf command writes the docking configuration to stdout,
             # so the log file is also copied to the config path for the downstream tool.
             if not dock_conf.exists():
-                print(f"Warning: docking configuration was not written for {ligand_name}; skipping")
-                continue
-
+                raise AssertionError(f"Docking configuration was not written for {ligand_name}")
+  
             output_prefix = dock_out_dir / f"{ligand_name}_tunnel{tunnel_idx}"
             caverdock_command = [
                 "caverdock",
@@ -112,7 +111,7 @@ def main() -> None:
             energy_dat = dock_out_dir / f"tunnel{tunnel_idx}_energy_profile.dat"
             energy_pdf = dock_out_dir / f"tunnel{tunnel_idx}_energy_profile.png"
             energy_command = ["cd-energyprofile", "-d", str(discr_tunnel), "-t", str(result_file), "-s", "0"]
-            run_command(energy_command, energy_dat.with_suffix(".log"))
+            run_command(["apptainer", "exec",  str(cd_image_path) ] + energy_command, energy_dat.with_suffix(".log"))
             shutil.copy2(energy_dat.with_suffix(".log"), energy_dat)
             if shutil.which("gnuplot"):
                 gnuplot_script = (

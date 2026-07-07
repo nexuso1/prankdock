@@ -20,3 +20,4 @@ dependencies:
   - chemicalite
   - reduce
   - vina
+  - gnuplot
