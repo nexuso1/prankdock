@@ -51,9 +51,9 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument("--delta", type=float, default=0.3, help="Discretizer delta. 0.3A is the Caverdock default.")
     parser.add_argument("--shell_depth", type=float, default=4, help="CAVER shell depth")
     parser.add_argument("--clustering_threshold", type=float, default=5, help="CAVER clustering threshold")
-    parser.add_argument("--compute_tunnel_residues", type=bool, default=True, help="Compute tunnel residues. Set to True if using tunnel filtering.")
+    parser.add_argument("--compute_tunnel_residues", type=bool, default=False, help="Compute tunnel residues")
     parser.add_argument("--filter_pockets", type=bool, default=True, help="Automatically filter tunnels based on their distance to membrane surface.")
-    parser.add_argument("--tol", type=float, default=12, help="Tunnel filtering surface distance tolerance, in Angstroms.")
+    parser.add_argument("--tol", type=float, default=10, help="Tunnel filtering surface distance tolerance, in Angstroms.")
     parser.add_argument("--centroid_res_id", type=int, default=5, help="Index of the resiude from which a surface centroid will be computed.")
     parser.add_argument("--cd_image", type=str, default="../caverdock-1.2.sif", help="Path to CaverDock Apptainer image")
     return parser
@@ -275,7 +275,7 @@ def process_pocket(
 
     created_tunnels: list[Path] = []
     tunnel_endpoints = { Path(path) : get_tunnel_endpoints(path) for path in glob.glob(str(prot_out_dir / 'data' / 'clusters' / '*.pdb')) }
-
+    print(f"Number of tunnels: {len(tunnel_endpoints.keys())}")
     for tunnel_path in filter_tunnels(tunnel_endpoints, pdb_path, config.centroid_res_id, config.tol):
         tunnel_id = tunnel_path.stem.removesuffix('.pdb').split('_')[-1]
         discr_tunnel = prot_out_dir / "data" / f"tunnel_{tunnel_id}.dsd"
@@ -290,7 +290,7 @@ def process_pocket(
         )
         if result_path is not None:
             created_tunnels.append(result_path)
-
+    print(f"Number of tunnels post-filtering: {len(created_tunnels)}")
     return created_tunnels
 
 def get_predictions_csv(prot_name, preds_dir):
