@@ -52,7 +52,6 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument("--shell_depth", type=float, default=4, help="CAVER shell depth")
     parser.add_argument("--clustering_threshold", type=float, default=5, help="CAVER clustering threshold")
     parser.add_argument("--compute_tunnel_residues", type=bool, default=False, help="Compute tunnel residues")
-    parser.add_argument("--filter_pockets", type=bool, default=True, help="Automatically filter tunnels based on their distance to membrane surface.")
     parser.add_argument("--tol", type=float, default=10, help="Tunnel filtering surface distance tolerance, in Angstroms.")
     parser.add_argument("--centroid_res_id", type=int, default=5, help="Index of the resiude from which a surface centroid will be computed.")
     parser.add_argument("--cd_image", type=str, default="../caverdock-1.2.sif", help="Path to CaverDock Apptainer image")

@@ -18,6 +18,6 @@ dependencies:
   - molscrub 
   - multiprocess
   - chemicalite
-  - reduce
   - vina
   - gnuplot
+  - biopython
