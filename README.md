@@ -13,8 +13,11 @@ conda env create -f environment.yaml
 ```
 conda activate dock
 ```
-- Download the [AutodockVina 4](https://github.com/ccsb-scripps/AutoDock-Vina/releases) binary and place it somewhere in the prankdock directory
--  Install [P2rank](https://github.com/rdk/p2rank) and [molscrub](https://github.com/forlilab/molscrub). Defaults behaviour of scripts in `source/` expects these tools to be located in the root directory of prankdock. If you install them somewhere else, do not forget to provide the correct path in the command line arguments of `run_p2rank.py` and `run_docking.py` 
+- Run the setup script
+```
+cd source
+./setup.sh
+```
 
 ### 2. PDB Downloads
 If you wish to download PDBs via `download_pdbs.py`, you need to obtain an API key for AlphaFold Database. Create a `.txt` file containing the key at this path: `data/key.txt`.
@@ -40,28 +43,28 @@ cd source
 5. Prepare receptors using `source/prepare_receptors.py`
 
     - This script handles receptor preparation, including addition of hydrogen atoms and docking pocket selection.
-        - We estimated the residues close to the external part of the membrane by computing the MSA of the proteins from `prots.csv` via `source/extract_sequences.py` and `align_sequences.py`. Then, we inspected the alignment and chose a few subsets of global MSA indices that roughly corresponded to residues near the relevant region in multiple proteins. 
-        - Pocket selection for docking has a few modes, the default one is `close_all`. It works as follows:
-            - First, selected indices from the global MSA are matched to residues in the given protein
-            - Then, a centroid is computed from the selected residues, which is hopefully close to the external part of the membrane
+        - Pocket selection for docking has a few modes, the default one is `pca_close`. It works as follows:
+            - First, we compute the first PCA component for the given protein, giving us a good central axis estimate
+            - Then, a centroid is computed from the projection of the atomic coordinates of a residue with a specifc sequential index (residue 5 by default) onto the central axis.
+                - Since the N-terminal should be near the external part of the membrane, we choose a residue that is close to the beginning of the sequence
+                - The first residue can potentially move a lot, so we choose a residue with a slightly higher sequential index
             - For each pocket, it computes the distance between the closest atom in the pocket and the centroid
-            - If the pocket is close enough (<= 20 A), it is considered for docking
-            - By default, we always dock to the highest scoring pocket as well, regardless of distance.
+            - If the pocket is close enough (<= 10 A), it is considered for docking
         - use `python run_docking.py -h` to get information about the other modes
     - Pocket size is computed automatically according to the p2rank pocket prediction
     - Each protonated receptor-pocket pair is then passed to `mk_prepare_receptor.py`
-    - Prepared receptors and vina configs are stored in `data/docking_files` by default
+    - Prepared receptors and vina configs are stored in `data/docking_files/<protein_id>/po` by default
 3. Dock ligands into predicted pockets with `source/run_docking.py`. 
-
 
     - After the receptors are prepared, it runs the AutoDock Vina 4 using the Vina forcefield on each combination of receptor and ligand.
     - Outputs are deposited in the `output/` folder
         - each pocket has its own subfolder (e.g. `output/output/A0A067XG43_p1` for pocket with rank 1 from the P2rank prediction) containing the `.pdbqt` files of docked ligands
 
 ## Example
-- assuming you already have downloaded the PDBs and use the MSA (`data/aligned_sequences.fasta`) and MSA indices (`data/msa_index_ranges.txt`) and `data/ligands.csv`
+- assuming you already have downloaded the PDBs
 
 ```
+conda activate dock
 cd source
 python run_p2rank.py
 python prepare_ligands.py
@@ -84,12 +87,11 @@ For each protein, computes possible tunnels and pushes all ligands through them.
 Currently assumes you are running on a machine that is able to use MPI to speed
 
 ## Requirements
-- Apptainer installed
+- Apptainer
     - https://apptainer.org/
-- CaverDock image
-    - https://www.caver.cz/index.php?sid=199 
-- CAVER
-    - [3.0.2 version](https://caver.cz/index.php?sid=199)
+- Conda
+    - https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html
+
 ## Usage
 1. Run the CaverDock container using Apptainer/Singularity
 ```

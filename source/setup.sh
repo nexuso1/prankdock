@@ -68,5 +68,3 @@ fi
 rm "$tmp_path"
 
 echo "Done. Extracted to $CAVER_DIR"
-
-conda create --file environment.yaml
