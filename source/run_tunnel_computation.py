@@ -245,12 +245,12 @@ def filter_tunnels(tunnel_endpoints, pdb_path, centroid_residue_id, tol=5):
  
 def process_pocket(
     pocket_idx: int,
+    pocket_name: str,
     prot_name: str,
     pdb_path: Path,
     pocket_center_coords: tuple[float],
     config: TunnelingConfig,
 ) -> list[Path]:
-    pocket_name = f"pocket{pocket_idx}"
     if pocket_center_coords is None:
         print(f"Warning: could not find {pocket_name} coordinates for {prot_name}; skipping")
         return []
@@ -313,6 +313,7 @@ def process_protein(
     
     csv_file = get_predictions_csv(prot_name, config.pocket_predictions_dir)
     pocket_preds = pd.read_csv(csv_file, skipinitialspace=True)
+    pocket_preds = pocket_preds.rename(columns=lambda x: x.strip())
     centers = pocket_preds[['center_x', 'center_y', 'center_z']]
     
     print(f"--- Processing {prot_name} ---")
@@ -321,6 +322,7 @@ def process_protein(
         created_tunnels.extend(
             process_pocket(
                 pocket_idx=pocket_idx,
+                pocket_name=pocket_preds.loc[pocket_idx]['name'].strip(),
                 pocket_center_coords=centers.loc[pocket_idx],
                 prot_name=prot_name,
                 pdb_path=pdb_path,
