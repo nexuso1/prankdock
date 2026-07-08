@@ -58,7 +58,7 @@ tmp_path="$REPO_DIR"/tmp/caver_3.0.zip
 wget -q --show-progress -O "$tmp_path" https://www.caver.cz/fil/download/caver30/301/caver_3.0.zip
 echo "Extracting CAVER..."
 mkdir -p "$CAVER_DIR"
-unzip "$tmp_path" -d "$CAVER_DIR"
+unzip "$tmp_path" -d "$REPO_DIR"
 
 if [ $? -ne 0 ]; then
     echo "Error: Failed to extract CAVER"
