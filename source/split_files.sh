@@ -2,17 +2,22 @@
 
 set -euo pipefail
 
-root_dir="${1%/}"
+
+if [ "$#" -ne 4 ]; then
+	echo "Splits files recursively into split folders, preserving the folder structure after <root_dir>"
+    echo
+    echo "Usage: $0 <root_dir> <splits_dir> <n_splits> <file_pattern>" >&2
+    echo
+	echo 'Example: ./split_tunnels.sh ../output/tunnel_results ../output/splits 64 "*.dsd"'
+    exit 1
+fi
+
+root_dir=$1
 splits_dir=$2
 n_splits=$3
 file_pattern=$4
 
-if [ "$#" -ne 4 ]; then
-	echo "Splits files recursively into split folders, preserving the folder structure after <root_dir>"
-    echo "Usage: $0 <root_dir> <splits_dir> <n_splits> <file_pattern>" >&2
-	echo 'Example: ./split_tunnels.sh ../output/tunnel_results ../output/splits 64 "*.dsd"'
-    exit 1
-fi
+root_dir="${1%/}"
 
 mapfile -t files < <(find "$root_dir" -type f -name "$file_pattern" | sort)
 file_count=${#files[@]}
