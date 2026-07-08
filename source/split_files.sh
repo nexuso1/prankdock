@@ -43,7 +43,7 @@ mkdir -p "$splits_dir"
 for i in "${!files[@]}"; do
     echo "$i/$file_count"
 
-    out_dir="$splits_dir/splits_$split_idx"
+    out_dir="$splits_dir/split_$split_idx"
     mkdir -p "$out_dir"
 
     rel_path="${files[i]#"$root_dir"/}"
